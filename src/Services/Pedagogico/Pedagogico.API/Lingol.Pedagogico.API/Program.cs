@@ -42,6 +42,11 @@ builder.Services.AddDbContext<PedagogicoDbContext>(options =>
     options.UseSqlServer(pedagogicoConnectionString);
 });
 
+// Registrar a interface do DbContext para que handlers que dependem de
+// IPedagogicoDbContext possam ser resolvidos pelo container de DI.
+builder.Services.AddScoped<IPedagogicoDbContext>(provider =>
+    provider.GetRequiredService<PedagogicoDbContext>());
+
 // ----------------------------------------------------------------------
 // 3. MediatR – Commands/Queries da camada Application
 // ----------------------------------------------------------------------
@@ -160,21 +165,23 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// Constrói a aplicação após registrar todos os serviços
 var app = builder.Build();
 
 // ----------------------------------------------------------------------
 // 8. Pipeline HTTP
 // ----------------------------------------------------------------------
 
-if (app.Environment.IsDevelopment())
+// Habilita página de exceção detalhada em desenvolvimento para depuração de erros
+app.UseDeveloperExceptionPage();
+
+// Habilita Swagger/UI (temporariamente fora do bloco de desenvolvimento para diagnóstico)
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Lingol Pedagógico API v1");
-        c.RoutePrefix = "swagger";
-    });
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Lingol Pedagógico API v1");
+    c.RoutePrefix = "swagger";
+});
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -191,47 +198,6 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "Lingol.Pe
        operation.Description = "Retorna status simples para verificar se o serviço está em execução.";
        return operation;
    });
-
-// ----------------------------------------------------------------------
-// 10. Registra os Handlers do MediatR (Commands e Queries) para que possam ser resolvidos via DI
-// ----------------------------------------------------------------------
-
-builder.Services.AddMediatR(cfg =>
-{
-    cfg.RegisterServicesFromAssembly(typeof(CriarAtividadeCommand).Assembly);
-    cfg.RegisterServicesFromAssembly(typeof(ObterRelatorioDificuldadesTurmaQuery).Assembly);
-    cfg.RegisterServicesFromAssembly(typeof(ObterRelatorioDificuldadesAlunoQuery).Assembly);
-});
-
-// ----------------------------------------------------------------------
-// 11. Configurações de HttpClient para serviços externos (IA e Cadastro)
-// ----------------------------------------------------------------------
-
-
-builder.Services.AddHttpClient<IIaAtividadeService, IaHttpClient>(client =>
-{
-    client.BaseAddress = new Uri(configuration["IaProvider:BaseUrl"] ?? "http://localhost:5010/");
-    client.Timeout = TimeSpan.FromSeconds(60);
-});
-
-builder.Services.AddHttpClient<ICadastroClient, CadastroHttpClient>(client =>
-{
-    client.BaseAddress = new Uri(configuration["CadastroService:BaseUrl"] ?? "http://localhost:5000/");
-    client.Timeout = TimeSpan.FromSeconds(10);
-});
-//add dbcontext
-builder.Services.AddDbContext<PedagogicoDbContext>(options =>
-{
-    options.UseSqlServer(pedagogicoConnectionString);
-});
-
-
-
-// Aqui você vai adicionar:
-// - POST /api/professor/atividades
-// - GET /api/professor/turmas/{turmaId}/relatorio-dificuldades
-// - GET /api/professor/turmas/{turmaId}/alunos/{alunoId}/relatorio-dificuldades
-// - POST /api/aluno/atividades/responder
-// - GET /api/aluno/relatorio-dificuldades
+// Fim da configuração de endpoints. O app será executado abaixo.
 
 app.Run();
