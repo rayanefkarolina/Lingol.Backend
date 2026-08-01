@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-Lingol.Pedagogico.Worker-4a3523ac-731b-4b27-9a91-6e4a6f852566</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MassTransit" Version="9.1.2" />
+    <PackageReference Include="MassTransit.EntityFrameworkCore" Version="9.1.2" />
+    <PackageReference Include="MassTransit.RabbitMQ" Version="9.1.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.17" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Pedagogico.Application\Lingol.Pedagogico.Application\Lingol.Pedagogico.Application.csproj" />
+    <ProjectReference Include="..\..\Pedagogico.Infrastructure\Lingol.Pedagogico.Infrastructure\Lingol.Pedagogico.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>
