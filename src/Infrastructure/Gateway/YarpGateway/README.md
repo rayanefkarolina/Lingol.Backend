@@ -1,21 +1,59 @@
 # YARP Gateway - Lingol
 
-Este projeto é um gateway reverse-proxy simples baseado em YARP para rotear /pedagogico para a API pedagógica e /cadastro para a API de cadastro.
+Gateway reverse-proxy mínimo usando YARP que roteia:
+- /pedagogico -> API Pedagógico
+- /cadastro  -> API Cadastro
 
-Como usar (local):
-1. Ajuste as portas em appsettings.json se necessário (destination Address).
-2. Build e run via dotnet:
+Pré-requisitos
+- .NET 9 SDK instalado
+- As APIs destino (Pedagogico e Cadastro) devidamente executando (por padrão espera-se:
+  - Pedagogico: http://localhost:5000/
+  - Cadastro:    http://localhost:5001/)
+
+Passo a passo para rodar localmente (PowerShell)
+
+1) Restaurar dependências e build da solução (recomendado na raiz do repo):
+   dotnet restore
    dotnet build
+
+2) (Opcional) Adicionar projeto à solution se ainda não estiver:
+   dotnet sln add src/Infrastructure/Gateway/YarpGateway/YarpGateway.csproj
+
+3) Ajuste das portas (se necessário):
+   - Abra src/Infrastructure/Gateway/YarpGateway/appsettings.json e altere os "Address" das clusters para as portas corretas das suas APIs.
+
+4) Executar o gateway (defina porta do gateway explicitamente):
+   # Exemplo: rodar gateway na porta 5002
+   $env:ASPNETCORE_URLS = "http://localhost:5002"
    dotnet run --project src/Infrastructure/Gateway/YarpGateway
 
-Teste:
-- Acesse http://localhost:5002/pedagogico/health para rotear para a API pedagógica (supondo que a API esteja em localhost:5000).
-- Acesse http://localhost:5002/cadastro/... para o serviço de cadastro.
+5) Testar endpoints através do gateway:
+   - http://localhost:5002/pedagogico/health  -> roteia para http://localhost:5000/health
+   - http://localhost:5002/cadastro/<rota>    -> roteia para http://localhost:5001/<rota>
 
-Docker:
-- docker build -t lingol/gateway:local -f src/Infrastructure/Gateway/YarpGateway/Dockerfile .
-- docker run -p 80:80 lingol/gateway:local
+Executando com Docker
 
-Notas:
-- Em produção, configure TLS e autenticação no gateway ou antes dele.
-- Esta implementação é mínima; ajuste políticas de timeout, retries e cabeçalhos conforme necessidade.
+1) Build da imagem (a partir da raiz do repo):
+   docker build -t lingol/gateway:local -f src/Infrastructure/Gateway/YarpGateway/Dockerfile .
+
+2) Executar o container (mapeando porta 80 do container para 5002 local):
+   docker run -p 5002:80 lingol/gateway:local
+
+3) Teste os mesmos endpoints acima usando a porta 5002.
+
+Observações importantes
+- Em produção, garanta TLS (HTTPS), autenticação/autorização no gateway ou antes dele.
+- Remova ou proteja qualquer UI de documentação (Swagger) no gateway em produção.
+- Configure políticas YARP (timeouts, retries com Polly, circuit-breaker) conforme necessidade de resiliência.
+
+Resolução de problemas
+- Se receber erros 502/404, verifique se as APIs destino estão ativas nas portas configuradas.
+- Para logs detalhados, ajuste logLevel em appsettings.json ou passe --logging:LogLevel:Default=Debug.
+
+Git / branch (sugestão de comandos para criar branch com as mudanças locais):
+   git checkout -b feature/add-yarp-gateway
+   git add src/Infrastructure/Gateway/YarpGateway
+   git commit -m "feat(gateway): add YARP gateway project"
+   git push -u origin feature/add-yarp-gateway
+
+Se quiser que eu gere um arquivo de configuração YARP mais avançado (timeouts, health probes, balanceamento, TLS), diga o que prefere e eu adiciono.

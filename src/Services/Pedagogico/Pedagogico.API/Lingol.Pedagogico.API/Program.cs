@@ -42,6 +42,9 @@ builder.Services.AddDbContext<PedagogicoDbContext>(options =>
     options.UseSqlServer(pedagogicoConnectionString);
 });
 
+// Controllers
+builder.Services.AddControllers();
+
 // Registrar a interface do DbContext para que handlers que dependem de
 // IPedagogicoDbContext possam ser resolvidos pelo container de DI.
 builder.Services.AddScoped<IPedagogicoDbContext>(provider =>
@@ -106,27 +109,38 @@ builder.Services.AddAuthorization(options =>
 });
 
 // ----------------------------------------------------------------------
-// 6. MassTransit + RabbitMQ (estrutura básica, você vai registrar consumers no Worker)
+// 6. MassTransit - opcional: registrar apenas quando habilitado em configuração
 // ----------------------------------------------------------------------
 
-builder.Services.AddMassTransit(x =>
+// Para evitar erro de licença/requirement ao executar localmente, o MassTransit
+// será registrado somente se a chave MassTransit:Enabled estiver true.
+// Habilite em appsettings ou via variável de ambiente quando necessário.
+if (configuration.GetValue<bool>("MassTransit:Enabled"))
 {
-    // Configuração mínima para publicar mensagens a partir da API, se precisar
-    x.UsingRabbitMq((context, cfg) =>
+    builder.Services.AddMassTransit(x =>
     {
-        var rabbitHost = configuration["RabbitMQ:Host"] ?? "rabbitmq";
-        var rabbitUser = configuration["RabbitMQ:User"] ?? "admin";
-        var rabbitPass = configuration["RabbitMQ:Pass"] ?? "admin123";
-
-        cfg.Host(rabbitHost, "/", h =>
+        // Em Development podemos optar por InMemory; em outros ambientes RabbitMQ
+        if (builder.Environment.IsDevelopment())
         {
-            h.Username(rabbitUser);
-            h.Password(rabbitPass);
-        });
+            x.UsingInMemory((context, cfg) => { });
+        }
+        else
+        {
+            x.UsingRabbitMq((context, cfg) =>
+            {
+                var rabbitHost = configuration["RabbitMQ:Host"] ?? "rabbitmq";
+                var rabbitUser = configuration["RabbitMQ:User"] ?? "admin";
+                var rabbitPass = configuration["RabbitMQ:Pass"] ?? "admin123";
 
-        // Sem receive endpoints aqui; o Worker é quem consome
+                cfg.Host(rabbitHost, "/", h =>
+                {
+                    h.Username(rabbitUser);
+                    h.Password(rabbitPass);
+                });
+            });
+        }
     });
-});
+}
 
 // ----------------------------------------------------------------------
 // 7. Swagger / OpenAPI
@@ -168,6 +182,7 @@ builder.Services.AddSwaggerGen(c =>
 // Constrói a aplicação após registrar todos os serviços
 var app = builder.Build();
 
+
 // ----------------------------------------------------------------------
 // 8. Pipeline HTTP
 // ----------------------------------------------------------------------
@@ -182,6 +197,8 @@ app.UseSwaggerUI(c =>
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Lingol Pedagógico API v1");
     c.RoutePrefix = "swagger";
 });
+
+app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -198,6 +215,8 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "Lingol.Pe
        operation.Description = "Retorna status simples para verificar se o serviço está em execução.";
        return operation;
    });
+// Mapeia controllers (endpoints via atributos [ApiController])
+app.MapControllers();
 // Fim da configuração de endpoints. O app será executado abaixo.
 
 app.Run();
