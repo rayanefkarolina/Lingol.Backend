@@ -87,6 +87,7 @@ else
 }
 
 builder.Services.AddTransient<AuthHeaderPropagationHandler>();
+builder.Services.AddScoped<Lingol.Pedagogico.API.Services.AcessoTurma>();
 
 builder.Services.AddHttpClient<ICadastroClient, CadastroHttpClient>(client =>
 {

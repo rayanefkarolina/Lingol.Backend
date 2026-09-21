@@ -18,7 +18,7 @@ namespace Lingol.Pedagogico.Infrastructure.Services
         public int TimeoutSegundos { get; set; } = 90;
 
         /// <summary>Tentativas totais por chamada (1 = sem retry).</summary>
-        public int MaxTentativas { get; set; } = 3;
+        public int MaxTentativas { get; set; } = 4;
 
         public double Temperatura { get; set; } = 0.7;
     }

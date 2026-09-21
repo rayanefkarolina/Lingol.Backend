@@ -1,29 +1,29 @@
-﻿using Lingol.Pedagogico.Application.Abstractions;
+using Lingol.Pedagogico.Application.Abstractions;
 using Lingol.Pedagogico.Application.Dtos;
-using Lingol.Pedagogico.Domain.Entities;
 using MediatR;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 
 namespace Lingol.Pedagogico.Application.Queries
 {
     public record ObterRelatorioDificuldadesTurmaQuery(Guid TurmaId)
-    : IRequest<RelatorioDificuldadesTurmaResult>;
+        : IRequest<RelatorioDificuldadesTurmaResult>;
 
+    /// <summary>
+    /// Dashboard diagnóstico da turma: mapa de lacunas por tipo de dificuldade,
+    /// questões que mais derrubaram a turma e a situação aluno a aluno — incluindo
+    /// quem ainda não entregou.
+    /// </summary>
     public class ObterRelatorioDificuldadesTurmaQueryHandler
         : IRequestHandler<ObterRelatorioDificuldadesTurmaQuery, RelatorioDificuldadesTurmaResult>
     {
-        private readonly IPedagogicoDbContext _dbContext;
+        private readonly IPedagogicoDbContext _db;
         private readonly ICadastroClient _cadastroClient;
 
         public ObterRelatorioDificuldadesTurmaQueryHandler(
-            IPedagogicoDbContext dbContext,
+            IPedagogicoDbContext db,
             ICadastroClient cadastroClient)
         {
-            _dbContext = dbContext;
+            _db = db;
             _cadastroClient = cadastroClient;
         }
 
@@ -31,56 +31,52 @@ namespace Lingol.Pedagogico.Application.Queries
             ObterRelatorioDificuldadesTurmaQuery request,
             CancellationToken cancellationToken)
         {
-            // carregar dificuldades da turma
-            var dificuldades = await _dbContext.GetDificuldadesByTurmaAsync(request.TurmaId, cancellationToken);
+            var turma = await _cadastroClient.ObterTurmaAsync(request.TurmaId, cancellationToken)
+                ?? throw new InvalidOperationException("Turma não encontrada no serviço de Cadastro.");
 
-            // respostas da turma (para calcular nota média)
-            var respostas = await _dbContext.GetRespostasByTurmaAsync(request.TurmaId, cancellationToken);
-
-            var alunosIds = dificuldades.Select(d => d.AlunoId)
-                .Union(respostas.Select(r => r.AlunoId))
-                .Distinct()
-                .ToList();
-
-            // dados de turma e alunos via Cadastro
-            var turmaCadastro = await _cadastroClient.ObterTurmaAsync(request.TurmaId, cancellationToken);
             var alunosCadastro = await _cadastroClient.ObterAlunosDaTurmaAsync(request.TurmaId, cancellationToken);
 
+            var entregas = await _db.RespostasAluno
+                .Where(r => r.TurmaId == request.TurmaId)
+                .ToListAsync(cancellationToken);
+
+            var dificuldades = await _db.DificuldadesAluno
+                .Where(d => d.TurmaId == request.TurmaId)
+                .ToListAsync(cancellationToken);
+
+            var atividadesPublicadas = await _db.Atividades
+                .CountAsync(a => a.TurmaId == request.TurmaId, cancellationToken);
+
+            // ----------------------------------------------------------
+            // Visão por aluno: a lista base é o Cadastro, não as entregas,
+            // para que quem não respondeu apareça no painel.
+            // ----------------------------------------------------------
             var alunos = new List<DificuldadePorAlunoDto>();
 
-            foreach (var alunoId in alunosIds)
+            foreach (var aluno in alunosCadastro.OrderBy(a => a.Nome))
             {
-                var dificuldadesAluno = dificuldades
-                    .Where(d => d.AlunoId == alunoId)
-                    .ToList();
+                var entregasAluno = entregas.Where(r => r.AlunoId == aluno.Id).ToList();
+                var dificuldadesAluno = dificuldades.Where(d => d.AlunoId == aluno.Id).ToList();
 
-                var respostasAluno = respostas
-                    .Where(r => r.AlunoId == alunoId && r.Nota.HasValue)
-                    .ToList();
-
-                var notaMedia = respostasAluno.Any()
-                    ? respostasAluno.Average(r => r.Nota!.Value)
-                    : (decimal?)null;
-
-                var agrupadoPorTipo = dificuldadesAluno
-                    .GroupBy(d => d.Tipo)
-                    .Select(g => new DificuldadeResumoDto(
-                        Tipo: g.Key,
-                        Quantidade: g.Count(),
-                        QuestoesComDificuldade: g.Select(x => x.QuestaoId).Distinct().ToList()))
-                    .ToList();
-
-                var cadastroAluno = alunosCadastro.FirstOrDefault(a => a.Id == alunoId);
-                var nomeAluno = cadastroAluno?.Nome ?? string.Empty;
+                var comNota = entregasAluno.Where(r => r.Nota.HasValue).ToList();
 
                 alunos.Add(new DificuldadePorAlunoDto(
-                    AlunoId: alunoId,
-                    NomeAluno: nomeAluno,
-                    NotaMedia: notaMedia,
-                    Dificuldades: agrupadoPorTipo));
+                    AlunoId: aluno.Id,
+                    NomeAluno: aluno.Nome,
+                    PerfilAee: aluno.TipoNecessidade,
+                    Entregou: entregasAluno.Count > 0,
+                    AtividadesEntregues: entregasAluno.Count,
+                    TotalAcertos: entregasAluno.Sum(r => r.Acertos),
+                    TotalErros: entregasAluno.Sum(r => r.Erros),
+                    NotaMedia: comNota.Count > 0
+                        ? Math.Round(comNota.Average(r => r.Nota!.Value), 2)
+                        : null,
+                    Dificuldades: AgruparPorTipo(dificuldadesAluno)));
             }
 
-            // resumo da turma
+            // ----------------------------------------------------------
+            // Mapa de lacunas da turma
+            // ----------------------------------------------------------
             var resumoTurma = dificuldades
                 .GroupBy(d => d.Tipo)
                 .Select(g => new DificuldadeTurmaResumoDto(
@@ -88,13 +84,84 @@ namespace Lingol.Pedagogico.Application.Queries
                     QuantidadeTotal: g.Count(),
                     QuantidadeAlunosAfetados: g.Select(x => x.AlunoId).Distinct().Count(),
                     QuestoesComDificuldade: g.Select(x => x.QuestaoId).Distinct().ToList()))
+                .OrderByDescending(x => x.QuantidadeTotal)
                 .ToList();
+
+            var questoesMaisErradas = await ObterQuestoesCriticasAsync(request.TurmaId, cancellationToken);
+
+            var entregasComNota = entregas.Where(r => r.Nota.HasValue).ToList();
 
             return new RelatorioDificuldadesTurmaResult(
                 TurmaId: request.TurmaId,
-                NomeTurma: turmaCadastro?.Nome ?? string.Empty,
+                NomeTurma: turma.Nome,
+                Ano: turma.Ano,
+                TotalAlunos: alunosCadastro.Count,
+                AlunosQueEntregaram: entregas.Select(r => r.AlunoId).Distinct().Count(),
+                AtividadesPublicadas: atividadesPublicadas,
+                NotaMediaTurma: entregasComNota.Count > 0
+                    ? Math.Round(entregasComNota.Average(r => r.Nota!.Value), 2)
+                    : null,
                 ResumoTurma: resumoTurma,
+                QuestoesMaisErradas: questoesMaisErradas,
                 Alunos: alunos);
+        }
+
+        internal static List<DificuldadeResumoDto> AgruparPorTipo(
+            IEnumerable<Domain.Entities.DificuldadeAluno> dificuldades) =>
+            dificuldades
+                .GroupBy(d => d.Tipo)
+                .Select(g => new DificuldadeResumoDto(
+                    Tipo: g.Key,
+                    Quantidade: g.Count(),
+                    QuestoesComDificuldade: g.Select(x => x.QuestaoId).Distinct().ToList()))
+                .OrderByDescending(x => x.Quantidade)
+                .ToList();
+
+        /// <summary>
+        /// As 10 questões com maior percentual de erro na turma — é o que o professor
+        /// precisa bater o olho para saber qual conceito revisar.
+        /// </summary>
+        private async Task<List<QuestaoCriticaDto>> ObterQuestoesCriticasAsync(
+            Guid turmaId,
+            CancellationToken ct)
+        {
+            var dados = await (
+                from item in _db.RespostasQuestao
+                join entrega in _db.RespostasAluno on item.RespostaAlunoId equals entrega.Id
+                join questao in _db.Questoes on item.QuestaoId equals questao.Id
+                where entrega.TurmaId == turmaId
+                group new { item, questao } by new
+                {
+                    questao.Id,
+                    questao.AtividadeId,
+                    questao.Ordem,
+                    questao.Enunciado,
+                    questao.Habilidade
+                }
+                into g
+                select new
+                {
+                    g.Key,
+                    Respostas = g.Count(),
+                    Erros = g.Count(x => !x.item.EstaCorreta)
+                })
+                .ToListAsync(ct);
+
+            return dados
+                .Where(x => x.Erros > 0)
+                .Select(x => new QuestaoCriticaDto(
+                    QuestaoId: x.Key.Id,
+                    AtividadeId: x.Key.AtividadeId,
+                    Ordem: x.Key.Ordem,
+                    Enunciado: x.Key.Enunciado,
+                    Habilidade: x.Key.Habilidade ?? string.Empty,
+                    Respostas: x.Respostas,
+                    Erros: x.Erros,
+                    PercentualErro: Math.Round((decimal)x.Erros / x.Respostas * 100m, 1)))
+                .OrderByDescending(x => x.PercentualErro)
+                .ThenByDescending(x => x.Erros)
+                .Take(10)
+                .ToList();
         }
     }
 }

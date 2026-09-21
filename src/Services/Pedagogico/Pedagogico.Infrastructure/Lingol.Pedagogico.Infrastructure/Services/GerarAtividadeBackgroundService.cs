@@ -98,7 +98,8 @@ public class GerarAtividadeBackgroundService : BackgroundService
                 q.Tipo,
                 q.GabaritoOuCriterio,
                 q.Alternativas,
-                q.Explicacao);
+                q.Explicacao,
+                q.Habilidade);
 
             atividade.AdicionarQuestao(questao);
             db.Questoes.Add(questao);

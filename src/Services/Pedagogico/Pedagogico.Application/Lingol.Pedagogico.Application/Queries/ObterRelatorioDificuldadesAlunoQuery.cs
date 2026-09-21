@@ -1,28 +1,28 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Lingol.Pedagogico.Application.Abstractions;
 using Lingol.Pedagogico.Application.Dtos;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace Lingol.Pedagogico.Application.Queries
 {
     public record ObterRelatorioDificuldadesAlunoQuery(Guid TurmaId, Guid AlunoId)
-    : IRequest<RelatorioDificuldadesAlunoResult>;
+        : IRequest<RelatorioDificuldadesAlunoResult>;
 
+    /// <summary>
+    /// Visão individual: histórico de entregas do aluno e as dificuldades que a IA
+    /// identificou, agrupadas por tipo.
+    /// </summary>
     public class ObterRelatorioDificuldadesAlunoQueryHandler
         : IRequestHandler<ObterRelatorioDificuldadesAlunoQuery, RelatorioDificuldadesAlunoResult>
     {
-        private readonly IPedagogicoDbContext _dbContext;
+        private readonly IPedagogicoDbContext _db;
         private readonly ICadastroClient _cadastroClient;
 
         public ObterRelatorioDificuldadesAlunoQueryHandler(
-            IPedagogicoDbContext dbContext,
+            IPedagogicoDbContext db,
             ICadastroClient cadastroClient)
         {
-            _dbContext = dbContext;
+            _db = db;
             _cadastroClient = cadastroClient;
         }
 
@@ -30,30 +30,46 @@ namespace Lingol.Pedagogico.Application.Queries
             ObterRelatorioDificuldadesAlunoQuery request,
             CancellationToken cancellationToken)
         {
-            var dificuldadesAluno = await _dbContext.GetDificuldadesAlunoAsync(request.TurmaId, request.AlunoId, cancellationToken);
+            var aluno = await _cadastroClient.ObterAlunoAsync(request.AlunoId, cancellationToken)
+                ?? throw new InvalidOperationException("Aluno não encontrado no serviço de Cadastro.");
 
-            var respostasAluno = await _dbContext.GetRespostasAlunoAsync(request.TurmaId, request.AlunoId, cancellationToken);
+            var dificuldades = await _db.DificuldadesAluno
+                .Where(d => d.TurmaId == request.TurmaId && d.AlunoId == request.AlunoId)
+                .ToListAsync(cancellationToken);
 
-            var notaMedia = respostasAluno.Any()
-                ? respostasAluno.Average(r => r.Nota!.Value)
-                : (decimal?)null;
+            var entregas = await (
+                from r in _db.RespostasAluno
+                join a in _db.Atividades on r.AtividadeId equals a.Id
+                where r.TurmaId == request.TurmaId && r.AlunoId == request.AlunoId
+                orderby r.DataEnvio descending
+                select new EntregaResumoDto(
+                    r.Id,
+                    a.Id,
+                    a.CapituloOuAssunto,
+                    r.Acertos,
+                    r.Erros,
+                    r.TotalQuestoes,
+                    r.Nota,
+                    r.DataEnvio,
+                    r.CorrecaoProcessada,
+                    r.FeedbackGeral))
+                .ToListAsync(cancellationToken);
 
-            var dificuldadesResumo = dificuldadesAluno
-                .GroupBy(d => d.Tipo)
-                .Select(g => new DificuldadeResumoDto(
-                    Tipo: g.Key,
-                    Quantidade: g.Count(),
-                    QuestoesComDificuldade: g.Select(x => x.QuestaoId).Distinct().ToList()))
-                .ToList();
-
-            var cadastroAluno = await _cadastroClient.ObterAlunoAsync(request.AlunoId, cancellationToken);
+            var comNota = entregas.Where(e => e.Nota.HasValue).ToList();
 
             return new RelatorioDificuldadesAlunoResult(
                 TurmaId: request.TurmaId,
                 AlunoId: request.AlunoId,
-                NomeAluno: cadastroAluno?.Nome ?? string.Empty,
-                NotaMedia: notaMedia,
-                Dificuldades: dificuldadesResumo);
+                NomeAluno: aluno.Nome,
+                PerfilAee: aluno.TipoNecessidade,
+                AtividadesEntregues: entregas.Count,
+                TotalAcertos: entregas.Sum(e => e.Acertos),
+                TotalErros: entregas.Sum(e => e.Erros),
+                NotaMedia: comNota.Count > 0
+                    ? Math.Round(comNota.Average(e => e.Nota!.Value), 2)
+                    : null,
+                Dificuldades: ObterRelatorioDificuldadesTurmaQueryHandler.AgruparPorTipo(dificuldades),
+                Entregas: entregas);
         }
     }
 }

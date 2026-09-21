@@ -98,6 +98,9 @@ Notas:
 - As duas chamadas usam **JSON Mode** (`responseMimeType: "application/json"` + `responseSchema`),
   então o C# desserializa direto, sem parsing de texto livre.
 - `IaProvider:UseFake = true` volta ao gerador simulado, útil para testar o fluxo sem gastar cota.
+- O Gemini às vezes responde **503 (high demand)**. O cliente já faz retry com backoff
+  (`MaxTentativas`), mas em picos longos a atividade termina em `Erro` com a mensagem no
+  `mensagemErro` — o professor consegue simplesmente pedir de novo.
 - Se a chave não estiver configurada e `UseFake` for `false`, a API falha no startup com mensagem
   explícita — em vez de quebrar só quando o professor clicar em "adaptar".
 
@@ -110,6 +113,35 @@ Notas:
 
 O aluno recebe o placar na hora (correção objetiva, síncrona); o diagnóstico pedagógico roda depois
 e alimenta o dashboard do professor.
+
+## Endpoints
+
+### Cadastro (`:5030`)
+
+| Método | Rota | Quem |
+|---|---|---|
+| POST | `/api/auth/professor/register` \| `/professor/login` \| `/aluno/login` | anônimo |
+| POST/GET | `/api/turmas`, `/api/turmas/{id}` | professor |
+| POST/GET | `/api/turmas/{id}/alunos` | professor |
+| GET | `/api/turmas/minhas` | aluno |
+| GET | `/api/alunos/{id}`, `/api/alunos/turma/{id}` | professor / próprio aluno |
+
+### Pedagógico (`:5209`)
+
+| Método | Rota | Quem |
+|---|---|---|
+| POST | `/api/atividades/gerar` → **202** | professor dono da turma |
+| GET | `/api/atividades/turmas/{turmaId}` | professor dono / aluno da turma |
+| GET | `/api/atividades/{id}` | professor dono / aluno da turma |
+| GET | `/api/atividades/{id}/questoes` (sem gabarito) | professor dono / aluno da turma |
+| POST | `/api/atividades/{id}/respostas` | aluno da turma |
+| GET | `/api/relatorios/turmas/{turmaId}` | professor dono |
+| GET | `/api/relatorios/turmas/{turmaId}/alunos/{alunoId}` | professor dono / próprio aluno |
+| GET | `/api/relatorios/atividades/{atividadeId}` | professor dono |
+
+O relatório da turma traz o mapa de lacunas por tipo de dificuldade, as 10 questões com maior
+percentual de erro (com a habilidade avaliada) e a situação aluno a aluno — **incluindo quem ainda
+não entregou**, que é o que o professor precisa para cobrar.
 
 ## Roteiro de validação (executado nesta máquina)
 
@@ -134,3 +166,16 @@ e alimenta o dashboard do professor.
 | Qualidade | Enunciados curtos, 4 alternativas, tipo por habilidade ("Substantivo próprio") |
 | Diagnóstico automático (3/10 acertos) | 7 dificuldades gravadas, todas classificadas como `Gramatica` |
 | Feedback ao aluno | Reconhece o acerto antes de apontar o que treinar |
+
+### Fase 2 — relatórios
+
+| Passo | Resultado |
+|---|---|
+| `GET /api/relatorios/turmas/{id}` | 2 alunos listados, 1 entregou, média da turma, 6 questões críticas com % de erro e habilidade |
+| Aluno que não entregou | Aparece no painel com `entregou: false` |
+| `GET /api/relatorios/atividades/{id}` | Desempenho questão a questão ("Q1 0% | Concordância verbal com sujeito simples") |
+| `GET /api/relatorios/turmas/{id}/alunos/{id}` | Histórico de entregas + feedback da IA + `diagnosticoPronto` |
+| Professor B na turma/atividade de outro | 403 |
+| Professor B listando atividades de outra turma | 403 |
+| Aluno no relatório da turma | 403 |
+| Aluno no próprio relatório | 200 |

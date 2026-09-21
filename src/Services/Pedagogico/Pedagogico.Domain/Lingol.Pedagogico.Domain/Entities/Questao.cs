@@ -22,7 +22,14 @@ namespace Lingol.Pedagogico.Domain.Entities
         public int Ordem { get; private set; }
 
         public string Enunciado { get; private set; } = default!;
+        /// <summary>Formato da questão (ex.: MultiplaEscolha).</summary>
         public string TipoQuestao { get; private set; } = default!;
+
+        /// <summary>
+        /// Conceito avaliado, devolvido pela IA (ex.: "concordância verbal com
+        /// sujeito composto"). É a chave do mapa de lacunas do professor.
+        /// </summary>
+        public string? Habilidade { get; private set; }
         public string GabaritoOuCriterio { get; private set; } = default!;
 
         /// <summary>
@@ -42,7 +49,8 @@ namespace Lingol.Pedagogico.Domain.Entities
             string tipoQuestao,
             string gabaritoOuCriterio,
             IEnumerable<string>? alternativas = null,
-            string? explicacao = null)
+            string? explicacao = null,
+            string? habilidade = null)
         {
             AtividadeId = atividadeId;
             Ordem = ordem;
@@ -50,6 +58,7 @@ namespace Lingol.Pedagogico.Domain.Entities
             TipoQuestao = tipoQuestao;
             GabaritoOuCriterio = gabaritoOuCriterio;
             Explicacao = explicacao;
+            Habilidade = habilidade;
             AlternativasJson = alternativas is null
                 ? null
                 : JsonSerializer.Serialize(alternativas);

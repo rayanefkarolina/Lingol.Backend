@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Lingol.Pedagogico.API.Services;
 using Lingol.Pedagogico.Application.Commands;
 using Lingol.Pedagogico.Domain.Entities;
 using Lingol.Pedagogico.Infrastructure.Persistence;
@@ -16,15 +17,18 @@ public class AtividadesController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly PedagogicoDbContext _db;
+    private readonly AcessoTurma _acesso;
     private readonly ILogger<AtividadesController> _logger;
 
     public AtividadesController(
         IMediator mediator,
         PedagogicoDbContext db,
+        AcessoTurma acesso,
         ILogger<AtividadesController> logger)
     {
         _mediator = mediator;
         _db = db;
+        _acesso = acesso;
         _logger = logger;
     }
 
@@ -87,9 +91,9 @@ public class AtividadesController : ControllerBase
     [HttpGet("turmas/{turmaId:guid}")]
     public async Task<IActionResult> ListarPorTurma(Guid turmaId, CancellationToken cancellationToken)
     {
-        // O aluno só enxerga atividades da própria turma.
-        if (User.IsInRole("Aluno") && ObterTurmaIdDoAluno() != turmaId)
-            return Forbid();
+        // Aluno: só a própria turma. Professor: só as turmas que ele criou.
+        if (!await _acesso.PodeVerTurmaAsync(User, turmaId, cancellationToken))
+            return StatusCode(StatusCodes.Status403Forbidden, new { erro = "Você não tem acesso a esta turma." });
 
         var atividades = await _db.Atividades
             .Where(a => a.TurmaId == turmaId)
@@ -123,8 +127,8 @@ public class AtividadesController : ControllerBase
         if (atividade is null)
             return NotFound();
 
-        if (User.IsInRole("Aluno") && ObterTurmaIdDoAluno() != atividade.TurmaId)
-            return Forbid();
+        if (!await _acesso.PodeVerTurmaAsync(User, atividade.TurmaId, cancellationToken))
+            return StatusCode(StatusCodes.Status403Forbidden, new { erro = "Você não tem acesso a esta atividade." });
 
         return Ok(new
         {
@@ -153,8 +157,8 @@ public class AtividadesController : ControllerBase
         if (atividade is null)
             return NotFound();
 
-        if (User.IsInRole("Aluno") && ObterTurmaIdDoAluno() != atividade.TurmaId)
-            return Forbid();
+        if (!await _acesso.PodeVerTurmaAsync(User, atividade.TurmaId, cancellationToken))
+            return StatusCode(StatusCodes.Status403Forbidden, new { erro = "Você não tem acesso a esta atividade." });
 
         if (atividade.Status != StatusAtividade.Pronta)
             return Conflict(new { status = atividade.Status.ToString(), mensagem = "A atividade ainda não está pronta." });
@@ -227,12 +231,6 @@ public class AtividadesController : ControllerBase
     private Guid? ObterUsuarioId()
     {
         var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(claim, out var id) ? id : null;
-    }
-
-    private Guid? ObterTurmaIdDoAluno()
-    {
-        var claim = User.FindFirstValue("turmaId");
         return Guid.TryParse(claim, out var id) ? id : null;
     }
 }

@@ -8,7 +8,8 @@ namespace Lingol.Pedagogico.Application.Dtos
         string Tipo,
         List<string> Alternativas,
         string GabaritoOuCriterio,
-        string? Explicacao = null);
+        string? Explicacao = null,
+        string? Habilidade = null);
 
     /// <summary>Dificuldade identificada pela IA ao corrigir uma entrega.</summary>
     public record DificuldadeIdentificadaDto(

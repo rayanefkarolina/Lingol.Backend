@@ -70,10 +70,11 @@ namespace Lingol.Pedagogico.Infrastructure.Services
 
                 questoes.Add(new QuestaoGeradaDto(
                     Enunciado: q.GetProperty("enunciado").GetString() ?? string.Empty,
-                    Tipo: string.IsNullOrWhiteSpace(habilidade) ? "MultiplaEscolha" : habilidade!,
+                    Tipo: "MultiplaEscolha",
                     Alternativas: alternativas,
                     GabaritoOuCriterio: (q.GetProperty("gabarito").GetString() ?? string.Empty).Trim().ToUpperInvariant(),
-                    Explicacao: q.TryGetProperty("explicacao", out var e) ? e.GetString() : null));
+                    Explicacao: q.TryGetProperty("explicacao", out var e) ? e.GetString() : null,
+                    Habilidade: habilidade));
             }
 
             if (questoes.Count == 0)

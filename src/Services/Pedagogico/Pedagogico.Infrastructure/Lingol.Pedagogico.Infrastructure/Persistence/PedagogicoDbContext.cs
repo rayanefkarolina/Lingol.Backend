@@ -20,38 +20,6 @@ namespace Lingol.Pedagogico.Infrastructure.Persistence
         public void Adicionar<TEntity>(TEntity entity) where TEntity : class
             => Set<TEntity>().Add(entity);
 
-        // ----------------------------------------------------------------
-        // Consultas de apoio aos relatórios (IPedagogicoDbContext)
-        // ----------------------------------------------------------------
-
-        public async Task<List<DificuldadeAluno>> GetDificuldadesAlunoAsync(Guid turmaId, Guid alunoId, CancellationToken cancellationToken = default)
-        {
-            return await DificuldadesAluno
-                .Where(d => d.TurmaId == turmaId && d.AlunoId == alunoId)
-                .ToListAsync(cancellationToken);
-        }
-
-        public async Task<List<RespostaAluno>> GetRespostasAlunoAsync(Guid turmaId, Guid alunoId, CancellationToken cancellationToken = default)
-        {
-            return await RespostasAluno
-                .Where(r => r.TurmaId == turmaId && r.AlunoId == alunoId && r.Nota.HasValue)
-                .ToListAsync(cancellationToken);
-        }
-
-        public async Task<List<DificuldadeAluno>> GetDificuldadesByTurmaAsync(Guid turmaId, CancellationToken cancellationToken = default)
-        {
-            return await DificuldadesAluno
-                .Where(d => d.TurmaId == turmaId)
-                .ToListAsync(cancellationToken);
-        }
-
-        public async Task<List<RespostaAluno>> GetRespostasByTurmaAsync(Guid turmaId, CancellationToken cancellationToken = default)
-        {
-            return await RespostasAluno
-                .Where(r => r.TurmaId == turmaId && r.Nota.HasValue)
-                .ToListAsync(cancellationToken);
-        }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -130,6 +98,9 @@ namespace Lingol.Pedagogico.Infrastructure.Persistence
                 entity.Property(q => q.GabaritoOuCriterio)
                     .HasMaxLength(2000)
                     .IsRequired();
+
+                entity.Property(q => q.Habilidade)
+                    .HasMaxLength(200);
 
                 entity.Property(q => q.Explicacao)
                     .HasMaxLength(2000);

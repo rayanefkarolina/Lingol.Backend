@@ -53,7 +53,8 @@ namespace Lingol.Pedagogico.Infrastructure.Services
                     Tipo: "MultiplaEscolha",
                     Alternativas: alternativas,
                     GabaritoOuCriterio: correta,
-                    Explicacao: $"A alternativa {correta} está correta porque aplica a regra de {capituloOuAssunto}."));
+                    Explicacao: $"A alternativa {correta} está correta porque aplica a regra de {capituloOuAssunto}.",
+                    Habilidade: capituloOuAssunto));
             }
 
             return questoes;
