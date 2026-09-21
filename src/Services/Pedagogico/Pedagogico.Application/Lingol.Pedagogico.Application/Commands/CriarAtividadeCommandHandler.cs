@@ -1,4 +1,6 @@
-﻿using Lingol.Pedagogico.Application.Abstractions;
+using System.Threading.Channels;
+using Lingol.Pedagogico.Application.Abstractions;
+using Lingol.Pedagogico.Application.Queue;
 using Lingol.Pedagogico.Domain.Entities;
 using MediatR;
 
@@ -8,55 +10,65 @@ public class CriarAtividadeCommandHandler
     : IRequestHandler<CriarAtividadeCommand, CriarAtividadeResult>
 {
     private readonly IPedagogicoDbContext _db;
-    private readonly IIaAtividadeService _iaService;
+    private readonly ICadastroClient _cadastroClient;
+    private readonly ChannelWriter<GerarAtividadeQueueItem> _queueWriter;
 
     public CriarAtividadeCommandHandler(
         IPedagogicoDbContext db,
-        IIaAtividadeService iaService)
+        ICadastroClient cadastroClient,
+        ChannelWriter<GerarAtividadeQueueItem> queueWriter)
     {
         _db = db;
-        _iaService = iaService;
+        _cadastroClient = cadastroClient;
+        _queueWriter = queueWriter;
     }
 
     public async Task<CriarAtividadeResult> Handle(
         CriarAtividadeCommand command,
         CancellationToken cancellationToken)
     {
-        // Opcional: validar se a turma existe via CadastroClient ou cache local
+        // 1. Validar que a turma existe e pertence ao professor autenticado.
+        var turma = await _cadastroClient.ObterTurmaAsync(command.TurmaId, cancellationToken)
+            ?? throw new InvalidOperationException("Turma não encontrada no serviço de Cadastro.");
 
-        // Chama IA para gerar questões
-        var questoesGeradas = await _iaService.GerarAtividadeAsync(
-            command.Livro,
-            command.CapituloOuAssunto,
-            command.Materia,
-            command.PerfilAeeContexto,
-            cancellationToken);
+        if (turma.ProfessorId != command.ProfessorId)
+            throw new UnauthorizedAccessException("A turma informada não pertence a este professor.");
 
-        // Cria entidade Atividade
+        // 2. Criar a Atividade em estado "Pendente".
+        var numQuestoes = command.NumQuestoes <= 0 ? 10 : command.NumQuestoes;
+
         var atividade = new Atividade(
             command.TurmaId,
+            command.ProfessorId,
             command.Livro,
-            command.CapituloOuAssunto);
+            command.CapituloOuAssunto,
+            string.IsNullOrWhiteSpace(command.Materia) ? turma.Materia : command.Materia,
+            numQuestoes,
+            command.Modo);
 
-        // Converte QuestaoGeradaDto -> Questao (domain)
-        foreach (var q in questoesGeradas)
-        {
-            var questao = new Questao(
-                atividade.Id,           // depende do seu construtor de Questao
-                q.Enunciado,
-                q.Tipo,
-                q.GabaritoOuCriterio,
-                q.Alternativas);
-
-            atividade.AdicionarQuestao(questao);
-            _db.AddQuestao(questao);
-        }
-
-        _db.AddAtividade(atividade);
+        _db.Adicionar(atividade);
         await _db.SaveChangesAsync(cancellationToken);
 
+        // 3. Enfileirar para processamento em background (a tela do professor não trava).
+        var queueItem = new GerarAtividadeQueueItem
+        {
+            AtividadeId = atividade.Id,
+            TurmaId = command.TurmaId,
+            Livro = command.Livro,
+            CapituloOuAssunto = command.CapituloOuAssunto,
+            Materia = atividade.Materia,
+            Ano = turma.Ano,
+            NumQuestoes = numQuestoes,
+            Modo = command.Modo,
+            PerfilAeeContexto = command.PerfilAeeContexto
+        };
+
+        await _queueWriter.WriteAsync(queueItem, cancellationToken);
+
+        // 4. Devolver 202 (Accepted) — o processamento continua em segundo plano.
         return new CriarAtividadeResult(
             AtividadeId: atividade.Id,
-            Questoes: questoesGeradas);
+            Status: atividade.Status.ToString(),
+            CriadoEm: atividade.DataCriacao);
     }
 }

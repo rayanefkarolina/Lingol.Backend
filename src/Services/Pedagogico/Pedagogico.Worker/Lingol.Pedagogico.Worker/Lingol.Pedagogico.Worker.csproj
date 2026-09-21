@@ -1,7 +1,9 @@
-<Project Sdk="Microsoft.NET.Sdk.Worker">
+﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
+		<!-- Permite executar sobre o runtime 10 enquanto o ASP.NET Core 9 nao estiver instalado. -->
+		<RollForward>LatestMajor</RollForward>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>dotnet-Lingol.Pedagogico.Worker-4a3523ac-731b-4b27-9a91-6e4a6f852566</UserSecretsId>

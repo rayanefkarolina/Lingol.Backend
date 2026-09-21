@@ -5,7 +5,7 @@
 namespace Lingol.Pedagogico.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class InicialMigration : Migration
+    public partial class ChavesGeradasNoCliente : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Lingol.Pedagogico.Infrastructure.Migrations
 {
     [DbContext(typeof(PedagogicoDbContext))]
-    [Migration("20260801151111_InicialMigration")]
-    partial class InicialMigration
+    [Migration("20260921011322_ChavesGeradasNoCliente")]
+    partial class ChavesGeradasNoCliente
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -28,7 +28,6 @@ namespace Lingol.Pedagogico.Infrastructure.Migrations
             modelBuilder.Entity("Lingol.Pedagogico.Domain.Entities.Atividade", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("CapituloOuAssunto")
@@ -39,15 +38,49 @@ namespace Lingol.Pedagogico.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime>("DataCriacao")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
                     b.Property<string>("Livro")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("Materia")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("MensagemErro")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Modo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("NumQuestoes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(10);
+
+                    b.Property<Guid>("ProfessorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<Guid>("TurmaId")
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TurmaId");
 
                     b.ToTable("Atividades", (string)null);
                 });
@@ -55,7 +88,6 @@ namespace Lingol.Pedagogico.Infrastructure.Migrations
             modelBuilder.Entity("Lingol.Pedagogico.Domain.Entities.DificuldadeAluno", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("AlunoId")
@@ -88,13 +120,14 @@ namespace Lingol.Pedagogico.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("TurmaId", "AlunoId");
+
                     b.ToTable("DificuldadesAluno", (string)null);
                 });
 
             modelBuilder.Entity("Lingol.Pedagogico.Domain.Entities.Questao", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("AlternativasJson")
@@ -113,10 +146,17 @@ namespace Lingol.Pedagogico.Infrastructure.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<string>("Explicacao")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<string>("GabaritoOuCriterio")
                         .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("Ordem")
+                        .HasColumnType("int");
 
                     b.Property<string>("TipoQuestao")
                         .IsRequired()
@@ -125,7 +165,7 @@ namespace Lingol.Pedagogico.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AtividadeId");
+                    b.HasIndex("AtividadeId", "Ordem");
 
                     b.ToTable("Questoes", (string)null);
                 });
@@ -133,8 +173,10 @@ namespace Lingol.Pedagogico.Infrastructure.Migrations
             modelBuilder.Entity("Lingol.Pedagogico.Domain.Entities.RespostaAluno", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Acertos")
+                        .HasColumnType("int");
 
                     b.Property<Guid>("AlunoId")
                         .HasColumnType("uniqueidentifier");
@@ -150,16 +192,70 @@ namespace Lingol.Pedagogico.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime>("DataEnvio")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<int>("Erros")
+                        .HasColumnType("int");
+
                     b.Property<string>("FeedbackGeral")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
                     b.Property<decimal?>("Nota")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int>("TotalQuestoes")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TurmaId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("TurmaId");
+
+                    b.HasIndex("AtividadeId", "AlunoId")
+                        .IsUnique();
+
                     b.ToTable("RespostasAluno", (string)null);
+                });
+
+            modelBuilder.Entity("Lingol.Pedagogico.Domain.Entities.RespostaQuestao", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("EstaCorreta")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("QuestaoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("RespostaAlunoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RespostaEscolhida")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("TempoSegundos")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QuestaoId");
+
+                    b.HasIndex("RespostaAlunoId");
+
+                    b.ToTable("RespostasQuestao", (string)null);
                 });
 
             modelBuilder.Entity("Lingol.Pedagogico.Domain.Entities.Questao", b =>
@@ -171,9 +267,23 @@ namespace Lingol.Pedagogico.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Lingol.Pedagogico.Domain.Entities.RespostaQuestao", b =>
+                {
+                    b.HasOne("Lingol.Pedagogico.Domain.Entities.RespostaAluno", null)
+                        .WithMany("Itens")
+                        .HasForeignKey("RespostaAlunoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Lingol.Pedagogico.Domain.Entities.Atividade", b =>
                 {
                     b.Navigation("Questoes");
+                });
+
+            modelBuilder.Entity("Lingol.Pedagogico.Domain.Entities.RespostaAluno", b =>
+                {
+                    b.Navigation("Itens");
                 });
 #pragma warning restore 612, 618
         }

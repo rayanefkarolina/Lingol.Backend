@@ -2,13 +2,14 @@
 
 	<PropertyGroup>
 		<TargetFramework>net9.0</TargetFramework>
+		<!-- Permite executar sobre o runtime 10 enquanto o ASP.NET Core 9 nao estiver instalado. -->
+		<RollForward>LatestMajor</RollForward>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\..\..\Pedagogico\Pedagogico.Application\Lingol.Pedagogico.Application\Lingol.Pedagogico.Application.csproj" />
-		<ProjectReference Include="..\..\..\Pedagogico\Pedagogico.Infrastructure\Lingol.Pedagogico.Infrastructure\Lingol.Pedagogico.Infrastructure.csproj" />
+		<ProjectReference Include="..\..\..\..\BuildingBlocks\Lingol.Contracts\Lingol.Contracts\Lingol.Contracts.csproj" />
 		<ProjectReference Include="..\..\Cadastro.Application\Lingol.Cadastro.Application\Lingol.Cadastro.Application.csproj" />
 		<ProjectReference Include="..\..\Cadastro.Infrastructure\Lingol.Cadastro.Infrastructure\Lingol.Cadastro.Infrastructure.csproj" />
 	</ItemGroup>

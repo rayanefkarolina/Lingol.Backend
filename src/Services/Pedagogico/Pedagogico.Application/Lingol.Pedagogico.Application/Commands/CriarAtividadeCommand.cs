@@ -1,23 +1,22 @@
-﻿using Lingol.Pedagogico.Application.Abstractions;
+using Lingol.Pedagogico.Domain.Entities;
 using MediatR;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Lingol.Pedagogico.Application.Commands
 {
     public record CriarAtividadeCommand(
-
-    Guid TurmaId,
-    string Livro,
-    string CapituloOuAssunto,
-    string Materia,
-    string? PerfilAeeContexto
+        Guid TurmaId,
+        Guid ProfessorId,
+        string Livro,
+        string CapituloOuAssunto,
+        string Materia,
+        int NumQuestoes = 10,
+        ModoGamificacao Modo = ModoGamificacao.Simples,
+        string? PerfilAeeContexto = null
     ) : IRequest<CriarAtividadeResult>;
 
     public record CriarAtividadeResult(
         Guid AtividadeId,
-        List<QuestaoGeradaDto> Questoes);
+        string Status,
+        DateTime CriadoEm
+    );
 }

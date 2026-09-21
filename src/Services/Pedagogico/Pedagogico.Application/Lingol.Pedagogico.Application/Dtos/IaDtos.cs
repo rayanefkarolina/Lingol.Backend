@@ -1,26 +1,22 @@
-﻿using Lingol.Pedagogico.Domain.Entities;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Lingol.Pedagogico.Domain.Entities;
 
 namespace Lingol.Pedagogico.Application.Dtos
 {
-    // Questão gerada pela IA quando o professor cria uma atividade
+    /// <summary>Questão devolvida pela IA no momento em que o professor gera a atividade.</summary>
     public record QuestaoGeradaDto(
         string Enunciado,
         string Tipo,
         List<string> Alternativas,
-        string GabaritoOuCriterio);
+        string GabaritoOuCriterio,
+        string? Explicacao = null);
 
-    // Dificuldade identificada pela IA ao corrigir uma atividade
+    /// <summary>Dificuldade identificada pela IA ao corrigir uma entrega.</summary>
     public record DificuldadeIdentificadaDto(
         TipoDificuldade Tipo,
         Guid QuestaoId,
         string Descricao);
 
-    // Resultado da correção de uma atividade pelo aluno
+    /// <summary>Resultado da correção de uma entrega do aluno.</summary>
     public record CorrecaoResultado(
         decimal Nota,
         string FeedbackGeral,

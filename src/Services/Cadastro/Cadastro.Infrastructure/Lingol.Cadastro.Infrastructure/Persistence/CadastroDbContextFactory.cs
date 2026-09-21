@@ -16,7 +16,7 @@ namespace Lingol.Cadastro.Infrastructure.Persistence
 
             // Connection string de desenvolvimento.
             // Você pode pegar de um appsettings, mas em factory é comum usar uma fixa simples.
-            var connectionString = "Server=localhost\\SQLEXPRESS03;Database=LingolCadastro;Trusted_Connection=True;TrustServerCertificate=True";
+            var connectionString = "Server=localhost\\SQLEXPRESS;Database=LingolCadastro;Trusted_Connection=True;TrustServerCertificate=True";
 
             optionsBuilder.UseSqlServer(connectionString);
 

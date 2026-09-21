@@ -4,6 +4,7 @@ using Lingol.Pedagogico.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Lingol.Pedagogico.Infrastructure.Migrations
 {
     [DbContext(typeof(PedagogicoDbContext))]
-    partial class PedagogicoDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260921005633_InitialCreate")]
+    partial class InitialCreate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -25,6 +28,7 @@ namespace Lingol.Pedagogico.Infrastructure.Migrations
             modelBuilder.Entity("Lingol.Pedagogico.Domain.Entities.Atividade", b =>
                 {
                     b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("CapituloOuAssunto")
@@ -85,6 +89,7 @@ namespace Lingol.Pedagogico.Infrastructure.Migrations
             modelBuilder.Entity("Lingol.Pedagogico.Domain.Entities.DificuldadeAluno", b =>
                 {
                     b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("AlunoId")
@@ -125,6 +130,7 @@ namespace Lingol.Pedagogico.Infrastructure.Migrations
             modelBuilder.Entity("Lingol.Pedagogico.Domain.Entities.Questao", b =>
                 {
                     b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("AlternativasJson")
@@ -170,6 +176,7 @@ namespace Lingol.Pedagogico.Infrastructure.Migrations
             modelBuilder.Entity("Lingol.Pedagogico.Domain.Entities.RespostaAluno", b =>
                 {
                     b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Acertos")
@@ -224,6 +231,7 @@ namespace Lingol.Pedagogico.Infrastructure.Migrations
             modelBuilder.Entity("Lingol.Pedagogico.Domain.Entities.RespostaQuestao", b =>
                 {
                     b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAtUtc")

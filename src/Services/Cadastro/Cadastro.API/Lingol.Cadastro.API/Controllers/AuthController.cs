@@ -1,11 +1,8 @@
 ﻿using Lingol.Cadastro.Infrastructure.Persistence;
-using Lingol.Cadastro.Infrastructure.Persistence;
-using Lingol.Cadastro.Infrastructure.Security;
 using Lingol.Cadastro.Infrastructure.Security;
 using Lingol.Contracts.Cadastro.Requests;
 using Lingol.Contracts.Cadastro.Responses;
 using Lingol.Domain.Entities;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -48,7 +45,9 @@ public class AuthController : ControllerBase
         if (professor.SenhaHash != senhaHash)
             return Unauthorized();
 
-        var jwtKey = _config["Jwt:Key"] ?? "ChaveSuperSecretaLingol123!";
+        // HS256 exige chave de no minimo 256 bits (32 bytes).
+        var jwtKey = _config["Jwt:Key"]
+            ?? throw new InvalidOperationException("Jwt:Key nao configurada.");
         var jwtIssuer = _config["Jwt:Issuer"] ?? "Lingol.Auth";
         var jwtAudience = _config["Jwt:Audience"] ?? "Lingol.Client";
 
@@ -107,7 +106,9 @@ public class AuthController : ControllerBase
         if (turma is null)
             return Unauthorized();
 
-        var jwtKey = _config["Jwt:Key"] ?? "ChaveSuperSecretaLingol123!";
+        // HS256 exige chave de no minimo 256 bits (32 bytes).
+        var jwtKey = _config["Jwt:Key"]
+            ?? throw new InvalidOperationException("Jwt:Key nao configurada.");
         var jwtIssuer = _config["Jwt:Issuer"] ?? "Lingol.Auth";
         var jwtAudience = _config["Jwt:Audience"] ?? "Lingol.Client";
 

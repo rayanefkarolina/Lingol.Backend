@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
     <ProjectReference Include="..\..\Pedagogico.Application\Lingol.Pedagogico.Application\Lingol.Pedagogico.Application.csproj" />
@@ -13,6 +13,10 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.17" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.17" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.17" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.17">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
     <PackageReference Include="Swashbuckle.AspNetCore.Swagger" Version="9.0.6" />
@@ -21,8 +25,11 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
+		<!-- Permite executar sobre o runtime 10 enquanto o ASP.NET Core 9 nao estiver instalado. -->
+		<RollForward>LatestMajor</RollForward>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>48b9a492-dc82-4414-9cac-01db9151cdf6</UserSecretsId>
   </PropertyGroup>
 
 </Project>

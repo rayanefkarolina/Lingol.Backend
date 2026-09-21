@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Lingol.Contracts.Cadastro.Requests
 {
@@ -14,5 +9,10 @@ namespace Lingol.Contracts.Cadastro.Requests
 
         [Required(ErrorMessage = "A matrícula é obrigatória.")]
         public string Matricula { get; set; } = string.Empty;
+
+        // Perfil de Atendimento Educacional Especializado (opcional).
+        public string? TipoNecessidadeAee { get; set; }
+
+        public string? ObservacoesAee { get; set; }
     }
 }

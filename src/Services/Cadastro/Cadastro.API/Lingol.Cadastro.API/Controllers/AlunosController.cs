@@ -1,9 +1,9 @@
 ﻿using Lingol.Cadastro.Infrastructure.Persistence;
+using Lingol.Contracts.Cadastro.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using static Lingol.Pedagogico.Application.Dtos.CadastroDtos;
 
 namespace Lingol.Cadastro.API.Controllers;
 

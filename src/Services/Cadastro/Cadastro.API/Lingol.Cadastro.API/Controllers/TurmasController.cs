@@ -1,12 +1,11 @@
 ﻿using Lingol.Cadastro.Infrastructure.Persistence;
+using Lingol.Contracts.Cadastro.Dtos;
 using Lingol.Contracts.Cadastro.Requests;
 using Lingol.Domain.Entities;
-using Lingol.Pedagogico.Application.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using static Lingol.Pedagogico.Application.Dtos.CadastroDtos;
 
 namespace Lingol.Cadastro.API.Controllers;
 
@@ -42,6 +41,7 @@ public class TurmasController : ControllerBase
         var turma = new Turma(
             request.Nome.Trim(),
             professorId,
+            request.Ano,
             request.Materia.Trim());
 
         _db.Turmas.Add(turma);
@@ -51,6 +51,7 @@ public class TurmasController : ControllerBase
             turma.Id,
             turma.Nome,
             turma.Materia,
+            turma.Ano,
             turma.ProfessorId);
 
         return CreatedAtAction(nameof(ObterPorId), new { turmaId = turma.Id }, dto);
@@ -73,6 +74,7 @@ public class TurmasController : ControllerBase
                 t.Id,
                 t.Nome,
                 t.Materia,
+                t.Ano,
                 t.ProfessorId))
             .ToListAsync(ct);
 
@@ -100,6 +102,7 @@ public class TurmasController : ControllerBase
             turma.Id,
             turma.Nome,
             turma.Materia,
+            turma.Ano,
             turma.ProfessorId);
 
         return Ok(dto);
@@ -144,6 +147,19 @@ public class TurmasController : ControllerBase
 
         _db.Alunos.Add(aluno);
         await _db.SaveChangesAsync(ct);
+
+        // Perfil de Atendimento Educacional Especializado (TDAH, TEA, ...), quando informado.
+        if (!string.IsNullOrWhiteSpace(request.TipoNecessidadeAee))
+        {
+            var perfil = new PerfilAee(
+                aluno.Id,
+                request.TipoNecessidadeAee.Trim(),
+                request.ObservacoesAee?.Trim() ?? string.Empty);
+
+            aluno.DefinirPerfilAee(perfil);
+            _db.PerfisAee.Add(perfil);
+            await _db.SaveChangesAsync(ct);
+        }
 
         var dto = new AlunoCadastroDto(
             aluno.Id,
@@ -216,6 +232,7 @@ public class TurmasController : ControllerBase
             turma.Id,
             turma.Nome,
             turma.Materia,
+            turma.Ano,
             turma.ProfessorId);
 
         return Ok(new[] { dto });

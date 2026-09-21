@@ -1,8 +1,11 @@
+using System.Security.Claims;
+using Lingol.Pedagogico.Application.Commands;
+using Lingol.Pedagogico.Domain.Entities;
 using Lingol.Pedagogico.Infrastructure.Persistence;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
 
 namespace Lingol.Pedagogico.API.Controllers;
 
@@ -11,152 +14,248 @@ namespace Lingol.Pedagogico.API.Controllers;
 [Authorize]
 public class AtividadesController : ControllerBase
 {
+    private readonly IMediator _mediator;
     private readonly PedagogicoDbContext _db;
-    private readonly MediatR.IMediator _mediator;
-    private readonly Lingol.Pedagogico.Application.Abstractions.IIaAtividadeService _iaService;
+    private readonly ILogger<AtividadesController> _logger;
 
-    public AtividadesController(PedagogicoDbContext db, MediatR.IMediator mediator, Lingol.Pedagogico.Application.Abstractions.IIaAtividadeService iaService)
+    public AtividadesController(
+        IMediator mediator,
+        PedagogicoDbContext db,
+        ILogger<AtividadesController> logger)
     {
-        _db = db;
         _mediator = mediator;
-        _iaService = iaService;
+        _db = db;
+        _logger = logger;
     }
 
-    // GET /api/atividades/turmas/{turmaId}
-    [HttpGet("turmas/{turmaId:guid}")]
-    public async Task<IActionResult> ListarPorTurma(Guid turmaId, CancellationToken ct)
+    // ================================================================
+    // POST /api/atividades/gerar  -> 202 Accepted (geração em background)
+    // ================================================================
+    [HttpPost("gerar")]
+    [Authorize(Policy = "ProfessorPolicy")]
+    public async Task<IActionResult> GerarAtividade(
+        [FromBody] GerarAtividadeRequest request,
+        CancellationToken cancellationToken)
     {
-        var role = User.FindFirstValue(ClaimTypes.Role);
-        if (role == "Aluno")
+        var professorId = ObterUsuarioId();
+        if (professorId is null)
+            return Unauthorized();
+
+        if (!Enum.TryParse<ModoGamificacao>(request.Modo, ignoreCase: true, out var modo))
+            modo = ModoGamificacao.Simples;
+
+        _logger.LogInformation("Professor {ProfessorId} solicitou atividade para a turma {TurmaId}",
+            professorId, request.TurmaId);
+
+        var command = new CriarAtividadeCommand(
+            TurmaId: request.TurmaId,
+            ProfessorId: professorId.Value,
+            Livro: request.Livro,
+            CapituloOuAssunto: request.Assunto,
+            Materia: request.Materia ?? "Língua Portuguesa",
+            NumQuestoes: request.NumQuestoes ?? 10,
+            Modo: modo,
+            PerfilAeeContexto: request.PerfilAeeContexto);
+
+        try
         {
-            var turmaClaim = User.FindFirstValue("turmaId");
-            if (turmaClaim is null) return Unauthorized();
-            if (!Guid.TryParse(turmaClaim, out var turmaClaimId) || turmaClaimId != turmaId)
-                return Forbid();
+            var result = await _mediator.Send(command, cancellationToken);
+
+            return Accepted(
+                $"/api/atividades/{result.AtividadeId}",
+                new
+                {
+                    atividadeId = result.AtividadeId,
+                    status = result.Status,
+                    criadoEm = result.CriadoEm,
+                    mensagem = "Atividade enfileirada para geração. Você será notificado quando estiver pronta."
+                });
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { erro = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { erro = ex.Message });
+        }
+    }
+
+    // ================================================================
+    // GET /api/atividades/turmas/{turmaId}
+    // ================================================================
+    [HttpGet("turmas/{turmaId:guid}")]
+    public async Task<IActionResult> ListarPorTurma(Guid turmaId, CancellationToken cancellationToken)
+    {
+        // O aluno só enxerga atividades da própria turma.
+        if (User.IsInRole("Aluno") && ObterTurmaIdDoAluno() != turmaId)
+            return Forbid();
 
         var atividades = await _db.Atividades
             .Where(a => a.TurmaId == turmaId)
+            .OrderByDescending(a => a.DataCriacao)
             .Select(a => new
             {
-                a.Id,
-                a.Livro,
-                a.CapituloOuAssunto,
-                QuestoesCount = a.Questoes.Count
+                id = a.Id,
+                livro = a.Livro,
+                assunto = a.CapituloOuAssunto,
+                materia = a.Materia,
+                modo = a.Modo.ToString(),
+                status = a.Status.ToString(),
+                dataCriacao = a.DataCriacao,
+                numQuestoes = a.Questoes.Count
             })
-            .ToListAsync(ct);
+            .ToListAsync(cancellationToken);
 
         return Ok(atividades);
     }
 
-    // GET /api/atividades/{atividadeId}
-    [HttpGet("{atividadeId:guid}")]
-    public async Task<IActionResult> ObterPorId(Guid atividadeId, CancellationToken ct)
+    // ================================================================
+    // GET /api/atividades/{id}
+    // ================================================================
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> ObterAtividade(Guid id, CancellationToken cancellationToken)
     {
         var atividade = await _db.Atividades
             .Include(a => a.Questoes)
-            .FirstOrDefaultAsync(a => a.Id == atividadeId, ct);
+            .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 
         if (atividade is null)
             return NotFound();
 
-        // Se usuário for aluno, validar pertence à mesma turma
-        var role = User.FindFirstValue(ClaimTypes.Role);
-        if (role == "Aluno")
-        {
-            var turmaClaim = User.FindFirstValue("turmaId");
-            if (turmaClaim is null) return Unauthorized();
-            if (!Guid.TryParse(turmaClaim, out var turmaClaimId) || turmaClaimId != atividade.TurmaId)
-                return Forbid();
-        }
+        if (User.IsInRole("Aluno") && ObterTurmaIdDoAluno() != atividade.TurmaId)
+            return Forbid();
 
-        var dto = new
+        return Ok(new
         {
-            atividade.Id,
-            atividade.Livro,
-            atividade.CapituloOuAssunto,
-            Questoes = atividade.Questoes.Select(q => new
-            {
-                q.Id,
-                q.Enunciado,
-                q.TipoQuestao,
-                q.AlternativasJson
-            })
-        };
-
-        return Ok(dto);
+            id = atividade.Id,
+            turmaId = atividade.TurmaId,
+            livro = atividade.Livro,
+            assunto = atividade.CapituloOuAssunto,
+            materia = atividade.Materia,
+            modo = atividade.Modo.ToString(),
+            status = atividade.Status.ToString(),
+            dataCriacao = atividade.DataCriacao,
+            mensagemErro = atividade.MensagemErro,
+            numQuestoes = atividade.Questoes.Count
+        });
     }
 
-    // POST /api/atividades/gerar
-    [HttpPost("gerar")]
-    [Authorize(Roles = "Professor")]
-    public async Task<IActionResult> GerarAtividade([FromBody] GerarAtividadeRequest request, CancellationToken ct)
+    // ================================================================
+    // GET /api/atividades/{id}/questoes  (sem gabarito)
+    // ================================================================
+    [HttpGet("{id:guid}/questoes")]
+    public async Task<IActionResult> ObterQuestoes(Guid id, CancellationToken cancellationToken)
     {
-        if (!ModelState.IsValid)
-            return ValidationProblem(ModelState);
-
-        // Monta o command e delega para MediatR
-        var command = new Lingol.Pedagogico.Application.Commands.CriarAtividadeCommand(
-            request.TurmaId,
-            request.Livro,
-            request.CapituloOuAssunto,
-            request.Materia,
-            request.PerfilAeeContexto);
-
-        var result = await _mediator.Send(command, ct);
-
-        return CreatedAtAction(nameof(ObterPorId), new { atividadeId = result.AtividadeId }, result);
-    }
-
-    public record GerarAtividadeRequest(Guid TurmaId, string Livro, string CapituloOuAssunto, string Materia, string? PerfilAeeContexto);
-
-    // POST /api/atividades/{atividadeId}/respostas
-    [HttpPost("{atividadeId:guid}/respostas")]
-    [Authorize(Roles = "Aluno")]
-    public async Task<IActionResult> EnviarResposta(Guid atividadeId, [FromBody] EnviarRespostaRequest request, CancellationToken ct)
-    {
-        var alunoIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (alunoIdClaim is null) return Unauthorized();
-
-        var alunoId = Guid.Parse(alunoIdClaim);
-
         var atividade = await _db.Atividades
-            .Include(a => a.Questoes)
-            .FirstOrDefaultAsync(a => a.Id == atividadeId, ct);
+            .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 
-        if (atividade is null) return NotFound();
+        if (atividade is null)
+            return NotFound();
 
-        // Cria RespostaAluno simples (detalhes das respostas podem ser incorporados depois)
-        var resposta = new Lingol.Pedagogico.Domain.Entities.RespostaAluno(atividadeId, alunoId);
-        _db.RespostasAluno.Add(resposta);
-        await _db.SaveChangesAsync(ct);
+        if (User.IsInRole("Aluno") && ObterTurmaIdDoAluno() != atividade.TurmaId)
+            return Forbid();
 
-        // Chama serviço de IA para correção
-        var correcao = await _iaService.CorrigirRespostaAsync(atividade, resposta, ct);
+        if (atividade.Status != StatusAtividade.Pronta)
+            return Conflict(new { status = atividade.Status.ToString(), mensagem = "A atividade ainda não está pronta." });
 
-        // Atualiza resposta
-        resposta.DefinirCorrecao(correcao.Nota, correcao.FeedbackGeral);
-        resposta.MarcarCorrecaoProcessada();
+        var questoes = await _db.Questoes
+            .Where(q => q.AtividadeId == id)
+            .OrderBy(q => q.Ordem)
+            .ToListAsync(cancellationToken);
 
-        // Persiste dificuldades identificadas
-        foreach (var d in correcao.Dificuldades)
+        var payload = questoes.Select(q => new
         {
-            var dif = new Lingol.Pedagogico.Domain.Entities.DificuldadeAluno(
-                resposta.Id,
-                atividade.Id,
-                atividade.TurmaId,
-                alunoId,
-                d.QuestaoId,
-                d.Tipo,
-                d.Descricao);
+            id = q.Id,
+            ordem = q.Ordem,
+            enunciado = q.Enunciado,
+            tipo = q.TipoQuestao,
+            alternativas = q.ObterAlternativas()
+        });
 
-            _db.DificuldadesAluno.Add(dif);
-        }
-
-        await _db.SaveChangesAsync(ct);
-
-        return Ok(new { respostaId = resposta.Id, nota = resposta.Nota, feedback = resposta.FeedbackGeral });
+        return Ok(payload);
     }
 
-    public record EnviarRespostaRequest(string? RespostasJson);
+    // ================================================================
+    // POST /api/atividades/{id}/respostas
+    // ================================================================
+    [HttpPost("{id:guid}/respostas")]
+    [Authorize(Policy = "AlunoPolicy")]
+    public async Task<IActionResult> EnviarRespostas(
+        Guid id,
+        [FromBody] EnviarRespostasRequest request,
+        CancellationToken cancellationToken)
+    {
+        var alunoId = ObterUsuarioId();
+        if (alunoId is null)
+            return Unauthorized();
+
+        _logger.LogInformation("Aluno {AlunoId} enviando respostas da atividade {AtividadeId}", alunoId, id);
+
+        var command = new EnviarRespostasCommand(id, alunoId.Value, request.Respostas);
+
+        try
+        {
+            var result = await _mediator.Send(command, cancellationToken);
+
+            return Ok(new
+            {
+                atividadeId = id,
+                respostaAlunoId = result.RespostaAlunoId,
+                acertos = result.Acertos,
+                erros = result.Erros,
+                totalQuestoes = result.TotalQuestoes,
+                nota = result.Nota,
+                correcoes = result.Correcoes,
+                mensagem = $"Você acertou {result.Acertos}/{result.TotalQuestoes} questões!"
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { erro = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { erro = ex.Message });
+        }
+    }
+
+    // ----------------------------------------------------------------
+    // Helpers de claims
+    // ----------------------------------------------------------------
+
+    private Guid? ObterUsuarioId()
+    {
+        var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return Guid.TryParse(claim, out var id) ? id : null;
+    }
+
+    private Guid? ObterTurmaIdDoAluno()
+    {
+        var claim = User.FindFirstValue("turmaId");
+        return Guid.TryParse(claim, out var id) ? id : null;
+    }
+}
+
+// ================================================================
+// DTOs de Request
+// ================================================================
+
+public class GerarAtividadeRequest
+{
+    public Guid TurmaId { get; set; }
+    public string Livro { get; set; } = default!;
+    public string Assunto { get; set; } = default!;
+    public string? Materia { get; set; }
+    public int? NumQuestoes { get; set; }
+
+    /// <summary>"Simples" (questionário) ou "Rpg" (atividade gamificada).</summary>
+    public string? Modo { get; set; }
+
+    public string? PerfilAeeContexto { get; set; }
+}
+
+public class EnviarRespostasRequest
+{
+    public List<RespostaAlunoDto> Respostas { get; set; } = new();
 }

@@ -1,40 +1,37 @@
+using System.Text;
+using System.Threading.Channels;
+using Lingol.Pedagogico.API.Http;
+using Lingol.Pedagogico.API.Hubs;
 using Lingol.Pedagogico.Application.Abstractions;
 using Lingol.Pedagogico.Application.Commands;
 using Lingol.Pedagogico.Application.Queries;
+using Lingol.Pedagogico.Application.Queue;
 using Lingol.Pedagogico.Infrastructure.Persistence;
 using Lingol.Pedagogico.Infrastructure.Services;
-using MassTransit;
-using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.AspNetCore.OpenApi;
-using System.Security.Claims;
-using System.Text;
-using Lingol.Pedagogico.Infrastructure.Persistence;
-using Microsoft.OpenApi;
 using Microsoft.OpenApi.Models;
-// using Microsoft.OpenApi; // not required
 
 var builder = WebApplication.CreateBuilder(args);
-
-// ----------------------------------------------------------------------
-// 1. Configurações base (connection string, JWT)
-// ----------------------------------------------------------------------
-
 var configuration = builder.Configuration;
 
-// Connection string do banco pedagógico (ajuste para seu SQL Server)
-var pedagogicoConnectionString = configuration.GetConnectionString("Pedagogico") ??
-    "Server=localhost,1433;Database=LingolPedagogico;User Id=sa;Password=SqlServer@123;TrustServerCertificate=True;";
+// ----------------------------------------------------------------------
+// 1. Configurações base (connection string, JWT, CORS)
+// ----------------------------------------------------------------------
 
-// Config JWT compartilhado com o Cadastro.API
-var jwtKey = configuration["Jwt:Key"] ?? "ChaveSuperSecretaLingol123!";
+var pedagogicoConnectionString = configuration.GetConnectionString("Pedagogico")
+    ?? throw new InvalidOperationException("Connection string 'Pedagogico' não configurada.");
+
+var jwtKey = configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key não configurada.");
 var jwtIssuer = configuration["Jwt:Issuer"] ?? "Lingol.Auth";
 var jwtAudience = configuration["Jwt:Audience"] ?? "Lingol.Client";
 
+var origensPermitidas = configuration.GetSection("Cors:Origins").Get<string[]>()
+    ?? new[] { "http://localhost:4200" };
+
 // ----------------------------------------------------------------------
-// 2. EF Core – DbContext do Pedagógico
+// 2. EF Core
 // ----------------------------------------------------------------------
 
 builder.Services.AddDbContext<PedagogicoDbContext>(options =>
@@ -42,19 +39,16 @@ builder.Services.AddDbContext<PedagogicoDbContext>(options =>
     options.UseSqlServer(pedagogicoConnectionString);
 });
 
-// Controllers
-builder.Services.AddControllers();
-
-// Registrar a interface do DbContext para que handlers que dependem de
-// IPedagogicoDbContext possam ser resolvidos pelo container de DI.
 builder.Services.AddScoped<IPedagogicoDbContext>(provider =>
     provider.GetRequiredService<PedagogicoDbContext>());
 
+builder.Services.AddControllers();
+builder.Services.AddHttpContextAccessor();
+
 // ----------------------------------------------------------------------
-// 3. MediatR – Commands/Queries da camada Application
+// 3. MediatR
 // ----------------------------------------------------------------------
 
-// Ajuste os tipos abaixo conforme o namespace real dos seus handlers
 builder.Services.AddMediatR(cfg =>
 {
     cfg.RegisterServicesFromAssembly(typeof(CriarAtividadeCommand).Assembly);
@@ -62,23 +56,44 @@ builder.Services.AddMediatR(cfg =>
 });
 
 // ----------------------------------------------------------------------
-// 4. HttpClient para IA e Cadastro
+// 4. Provedor de IA e cliente do microsserviço de Cadastro
 // ----------------------------------------------------------------------
 
-// IIaAtividadeService -> serviço de IA (implementado em Lingol.Pedagogico.Infrastructure)
-builder.Services.AddHttpClient<IIaAtividadeService, IaHttpClient>()
-    .ConfigureHttpClient(client =>
-    {
-        client.BaseAddress = new Uri(configuration["IaProvider:BaseUrl"] ?? "http://localhost:5010/");
-        client.Timeout = TimeSpan.FromSeconds(60);
-    });
+builder.Services.Configure<GeminiOptions>(configuration.GetSection(GeminiOptions.SecaoConfig));
 
-// ICadastroClient -> microsserviço de Cadastro
+// IaProvider:UseFake = true usa o gerador simulado, util para testar o fluxo
+// (202 -> fila -> SignalR) sem consumir cota da API.
+if (configuration.GetValue<bool>("IaProvider:UseFake"))
+{
+    builder.Services.AddScoped<IIaAtividadeService, FakeIaAtividadeService>();
+}
+else
+{
+    var geminiOptions = configuration.GetSection(GeminiOptions.SecaoConfig).Get<GeminiOptions>()
+        ?? new GeminiOptions();
+
+    if (string.IsNullOrWhiteSpace(geminiOptions.ApiKey))
+    {
+        throw new InvalidOperationException(
+            "Gemini:ApiKey nao configurada. Rode: dotnet user-secrets set \"Gemini:ApiKey\" \"<token do AI Studio>\" " +
+            "ou defina IaProvider:UseFake = true para rodar com questoes simuladas.");
+    }
+
+    builder.Services.AddHttpClient<IIaAtividadeService, GeminiAtividadeService>(client =>
+    {
+        client.BaseAddress = new Uri(geminiOptions.BaseUrl);
+        client.Timeout = TimeSpan.FromSeconds(geminiOptions.TimeoutSegundos);
+    });
+}
+
+builder.Services.AddTransient<AuthHeaderPropagationHandler>();
+
 builder.Services.AddHttpClient<ICadastroClient, CadastroHttpClient>(client =>
 {
-    client.BaseAddress = new Uri(configuration["CadastroService:BaseUrl"] ?? "http://localhost:5000/");
+    client.BaseAddress = new Uri(configuration["CadastroService:BaseUrl"] ?? "http://localhost:5030/");
     client.Timeout = TimeSpan.FromSeconds(10);
-});
+})
+.AddHttpMessageHandler<AuthHeaderPropagationHandler>();
 
 // ----------------------------------------------------------------------
 // 5. Authentication + Authorization (JWT)
@@ -97,53 +112,66 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = jwtAudience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
         };
+
+        // O SignalR envia o token via query string (access_token) no handshake.
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                    context.Token = accessToken;
+
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("AlunoPolicy", policy =>
-        policy.RequireClaim("role", "Aluno"));
-
-    options.AddPolicy("ProfessorPolicy", policy =>
-        policy.RequireClaim("role", "Professor"));
+    options.AddPolicy("AlunoPolicy", policy => policy.RequireRole("Aluno"));
+    options.AddPolicy("ProfessorPolicy", policy => policy.RequireRole("Professor"));
 });
 
 // ----------------------------------------------------------------------
-// 6. MassTransit - opcional: registrar apenas quando habilitado em configuração
+// 6. CORS (Angular em http://localhost:4200)
 // ----------------------------------------------------------------------
 
-// Para evitar erro de licença/requirement ao executar localmente, o MassTransit
-// será registrado somente se a chave MassTransit:Enabled estiver true.
-// Habilite em appsettings ou via variável de ambiente quando necessário.
-if (configuration.GetValue<bool>("MassTransit:Enabled"))
+builder.Services.AddCors(options =>
 {
-    builder.Services.AddMassTransit(x =>
-    {
-        // Em Development podemos optar por InMemory; em outros ambientes RabbitMQ
-        if (builder.Environment.IsDevelopment())
-        {
-            x.UsingInMemory((context, cfg) => { });
-        }
-        else
-        {
-            x.UsingRabbitMq((context, cfg) =>
-            {
-                var rabbitHost = configuration["RabbitMQ:Host"] ?? "rabbitmq";
-                var rabbitUser = configuration["RabbitMQ:User"] ?? "admin";
-                var rabbitPass = configuration["RabbitMQ:Pass"] ?? "admin123";
-
-                cfg.Host(rabbitHost, "/", h =>
-                {
-                    h.Username(rabbitUser);
-                    h.Password(rabbitPass);
-                });
-            });
-        }
-    });
-}
+    options.AddPolicy("LingolFrontend", policy =>
+        policy.WithOrigins(origensPermitidas)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials()); // necessário para o SignalR
+});
 
 // ----------------------------------------------------------------------
-// 7. Swagger / OpenAPI
+// 7. Fila in-process (System.Threading.Channels) + BackgroundService
+// ----------------------------------------------------------------------
+
+var atividadeChannel = Channel.CreateUnbounded<GerarAtividadeQueueItem>();
+builder.Services.AddSingleton(atividadeChannel.Reader);
+builder.Services.AddSingleton(atividadeChannel.Writer);
+
+var correcaoChannel = Channel.CreateUnbounded<CorrigirEntregaQueueItem>();
+builder.Services.AddSingleton(correcaoChannel.Reader);
+builder.Services.AddSingleton(correcaoChannel.Writer);
+
+builder.Services.AddHostedService<GerarAtividadeBackgroundService>();
+builder.Services.AddHostedService<CorrigirEntregaBackgroundService>();
+
+// ----------------------------------------------------------------------
+// 8. SignalR + notificador
+// ----------------------------------------------------------------------
+
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IAtividadeNotifier, Lingol.Pedagogico.API.Services.SignalRAtividadeNotifier>();
+
+// ----------------------------------------------------------------------
+// 9. Swagger / OpenAPI
 // ----------------------------------------------------------------------
 
 builder.Services.AddEndpointsApiExplorer();
@@ -156,7 +184,6 @@ builder.Services.AddSwaggerGen(c =>
         Description = "Microsserviço pedagógico: atividades, respostas, correção por IA e relatórios."
     });
 
-    // Configuração de segurança para JWT no Swagger
     var securityScheme = new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -179,44 +206,34 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Constrói a aplicação após registrar todos os serviços
 var app = builder.Build();
 
-
 // ----------------------------------------------------------------------
-// 8. Pipeline HTTP
+// 10. Pipeline HTTP
 // ----------------------------------------------------------------------
 
-// Habilita página de exceção detalhada em desenvolvimento para depuração de erros
-app.UseDeveloperExceptionPage();
-
-// Habilita Swagger/UI (temporariamente fora do bloco de desenvolvimento para diagnóstico)
-app.UseSwagger();
-app.UseSwaggerUI(c =>
+if (app.Environment.IsDevelopment())
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Lingol Pedagógico API v1");
-    c.RoutePrefix = "swagger";
-});
+    app.UseDeveloperExceptionPage();
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Lingol Pedagógico API v1");
+        c.RoutePrefix = "swagger";
+    });
+}
 
 app.UseRouting();
+
+app.UseCors("LingolFrontend");
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-// ----------------------------------------------------------------------
-// 9. Endpoints básicos (health) – para testar se API está up
-// ----------------------------------------------------------------------
-
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "Lingol.Pedagogico.API" }))
-   .AllowAnonymous()
-   .WithOpenApi(operation =>
-   {
-       operation.Summary = "Health check da API pedagógica.";
-       operation.Description = "Retorna status simples para verificar se o serviço está em execução.";
-       return operation;
-   });
-// Mapeia controllers (endpoints via atributos [ApiController])
+   .AllowAnonymous();
+
+app.MapHub<AtividadeHub>("/hubs/atividades");
 app.MapControllers();
-// Fim da configuração de endpoints. O app será executado abaixo.
 
 app.Run();

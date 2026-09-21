@@ -1,9 +1,4 @@
-﻿using Lingol.Core;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Lingol.Core;
 
 namespace Lingol.Domain.Entities
 {
@@ -12,15 +7,23 @@ namespace Lingol.Domain.Entities
         private readonly List<Aluno> _alunos = new();
         public string Nome { get; private set; } = default!;
         public string Materia { get; private set; } = "Língua Portuguesa";
+
+        /// <summary>
+        /// Ano/série da turma no Ensino Fundamental (1 a 9).
+        /// Usado no prompt enviado à IA para adaptar o nível das questões.
+        /// </summary>
+        public int Ano { get; private set; } = 6;
+
         public Guid ProfessorId { get; private set; }
         public IReadOnlyCollection<Aluno> Alunos => _alunos;
 
-        private Turma(string v) { }
+        private Turma() { }
 
-        public Turma(string nome, Guid professorId, string materia = "Língua Portuguesa")
+        public Turma(string nome, Guid professorId, int ano = 6, string materia = "Língua Portuguesa")
         {
             Nome = nome;
             ProfessorId = professorId;
+            Ano = ano;
             Materia = materia;
         }
 

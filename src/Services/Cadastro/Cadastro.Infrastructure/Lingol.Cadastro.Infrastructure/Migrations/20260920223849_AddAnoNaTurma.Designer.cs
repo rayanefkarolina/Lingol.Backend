@@ -4,6 +4,7 @@ using Lingol.Cadastro.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Lingol.Cadastro.Infrastructure.Migrations
 {
     [DbContext(typeof(CadastroDbContext))]
-    partial class CadastroDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260920223849_AddAnoNaTurma")]
+    partial class AddAnoNaTurma
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -25,6 +28,7 @@ namespace Lingol.Cadastro.Infrastructure.Migrations
             modelBuilder.Entity("Lingol.Domain.Entities.Aluno", b =>
                 {
                     b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAtUtc")
@@ -56,6 +60,7 @@ namespace Lingol.Cadastro.Infrastructure.Migrations
             modelBuilder.Entity("Lingol.Domain.Entities.PerfilAee", b =>
                 {
                     b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("AlunoId")
@@ -85,6 +90,7 @@ namespace Lingol.Cadastro.Infrastructure.Migrations
             modelBuilder.Entity("Lingol.Domain.Entities.Professor", b =>
                 {
                     b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAtUtc")
@@ -116,6 +122,7 @@ namespace Lingol.Cadastro.Infrastructure.Migrations
             modelBuilder.Entity("Lingol.Domain.Entities.Turma", b =>
                 {
                     b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Ano")

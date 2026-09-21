@@ -32,6 +32,8 @@ namespace Lingol.Cadastro.Infrastructure.Persistence
 
                 entity.HasKey(p => p.Id);
 
+                entity.Property(p => p.Id).ValueGeneratedNever();
+
                 entity.Property(p => p.Nome)
                     .HasMaxLength(200)
                     .IsRequired();
@@ -46,6 +48,9 @@ namespace Lingol.Cadastro.Infrastructure.Persistence
                 entity.Property(p => p.SenhaHash)
                     .HasMaxLength(500)
                     .IsRequired();
+
+                entity.Navigation(p => p.Turmas)
+                    .UsePropertyAccessMode(PropertyAccessMode.Field);
             });
 
             // Turma
@@ -55,6 +60,8 @@ namespace Lingol.Cadastro.Infrastructure.Persistence
 
                 entity.HasKey(t => t.Id);
 
+                entity.Property(t => t.Id).ValueGeneratedNever();
+
                 entity.Property(t => t.Nome)
                     .HasMaxLength(200)
                     .IsRequired();
@@ -63,13 +70,22 @@ namespace Lingol.Cadastro.Infrastructure.Persistence
                     .HasMaxLength(100)
                     .IsRequired();
 
+                entity.Property(t => t.Ano)
+                    .IsRequired()
+                    .HasDefaultValue(6);
+
                 entity.Property(t => t.ProfessorId)
                     .IsRequired();
 
+                // Usa a navegação Professor.Turmas; sem isso o EF cria uma FK
+                // sombra (ProfessorId1) para a coleção não mapeada.
                 entity.HasOne<Professor>()
-                    .WithMany()
+                    .WithMany(p => p.Turmas)
                     .HasForeignKey(t => t.ProfessorId)
                     .OnDelete(DeleteBehavior.Restrict);
+
+                entity.Navigation(t => t.Alunos)
+                    .UsePropertyAccessMode(PropertyAccessMode.Field);
             });
 
             // Aluno
@@ -78,6 +94,8 @@ namespace Lingol.Cadastro.Infrastructure.Persistence
                 entity.ToTable("Alunos");
 
                 entity.HasKey(a => a.Id);
+
+                entity.Property(a => a.Id).ValueGeneratedNever();
 
                 entity.Property(a => a.Nome)
                     .HasMaxLength(200)
@@ -105,6 +123,8 @@ namespace Lingol.Cadastro.Infrastructure.Persistence
                 entity.ToTable("PerfisAee");
 
                 entity.HasKey(p => p.Id);
+
+                entity.Property(p => p.Id).ValueGeneratedNever();
 
                 entity.Property(p => p.AlunoId)
                     .IsRequired();

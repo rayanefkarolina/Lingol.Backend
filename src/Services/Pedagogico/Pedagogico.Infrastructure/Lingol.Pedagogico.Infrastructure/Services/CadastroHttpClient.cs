@@ -1,11 +1,7 @@
-﻿using Lingol.Pedagogico.Application.Abstractions;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Net;
 using System.Net.Http.Json;
-using System.Text;
-using System.Threading.Tasks;
-using static Lingol.Pedagogico.Application.Dtos.CadastroDtos;
+using Lingol.Contracts.Cadastro.Dtos;
+using Lingol.Pedagogico.Application.Abstractions;
 
 namespace Lingol.Pedagogico.Infrastructure.Services
 {
@@ -20,19 +16,36 @@ namespace Lingol.Pedagogico.Infrastructure.Services
 
         public async Task<TurmaCadastroDto?> ObterTurmaAsync(Guid turmaId, CancellationToken ct)
         {
-            return await _httpClient.GetFromJsonAsync<TurmaCadastroDto>($"api/turmas/{turmaId}", ct);
+            var response = await _httpClient.GetAsync($"api/turmas/{turmaId}", ct);
+
+            if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+                return null;
+
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<TurmaCadastroDto>(ct);
         }
 
         public async Task<AlunoCadastroDto?> ObterAlunoAsync(Guid alunoId, CancellationToken ct)
         {
-            return await _httpClient.GetFromJsonAsync<AlunoCadastroDto>($"api/alunos/{alunoId}", ct);
+            var response = await _httpClient.GetAsync($"api/alunos/{alunoId}", ct);
+
+            if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+                return null;
+
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<AlunoCadastroDto>(ct);
         }
 
         public async Task<List<AlunoCadastroDto>> ObterAlunosDaTurmaAsync(Guid turmaId, CancellationToken ct)
         {
-            var result = await _httpClient.GetFromJsonAsync<List<AlunoCadastroDto>>(
-                $"api/turmas/{turmaId}/alunos", ct);
+            var response = await _httpClient.GetAsync($"api/turmas/{turmaId}/alunos", ct);
 
+            if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+                return new List<AlunoCadastroDto>();
+
+            response.EnsureSuccessStatusCode();
+
+            var result = await response.Content.ReadFromJsonAsync<List<AlunoCadastroDto>>(ct);
             return result ?? new List<AlunoCadastroDto>();
         }
     }

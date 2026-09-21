@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Lingol.Contracts.Cadastro.Requests
 {
@@ -14,5 +9,8 @@ namespace Lingol.Contracts.Cadastro.Requests
 
         [Required(ErrorMessage = "A matéria é obrigatória.")]
         public string Materia { get; set; } = "Língua Portuguesa";
+
+        [Range(1, 9, ErrorMessage = "O ano da turma deve estar entre 1 e 9.")]
+        public int Ano { get; set; } = 6;
     }
 }

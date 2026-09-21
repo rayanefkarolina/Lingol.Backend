@@ -1,13 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static Lingol.Pedagogico.Application.Dtos.CadastroDtos;
+using Lingol.Contracts.Cadastro.Dtos;
 
 namespace Lingol.Pedagogico.Application.Abstractions
 {
-
     public interface ICadastroClient
     {
         Task<TurmaCadastroDto?> ObterTurmaAsync(Guid turmaId, CancellationToken ct);

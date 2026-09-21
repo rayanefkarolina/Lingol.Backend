@@ -1,12 +1,9 @@
+using System.Text;
 using Lingol.Cadastro.Infrastructure.Persistence;
-using Lingol.Domain.Entities;
-using Lingol.Pedagogico.Application.Abstractions;
-using Lingol.Pedagogico.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
@@ -14,9 +11,12 @@ var configuration = builder.Configuration;
 var cadastroConnectionString = configuration.GetConnectionString("Cadastro")
     ?? throw new InvalidOperationException("Connection string 'Cadastro' não configurada.");
 
-var jwtKey = configuration["Jwt:Key"] ?? "ChaveSuperSecretaLingol123!";
+var jwtKey = configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key não configurada.");
 var jwtIssuer = configuration["Jwt:Issuer"] ?? "Lingol.Auth";
 var jwtAudience = configuration["Jwt:Audience"] ?? "Lingol.Client";
+
+var origensPermitidas = configuration.GetSection("Cors:Origins").Get<string[]>()
+    ?? new[] { "http://localhost:4200" };
 
 builder.Services.AddDbContext<CadastroDbContext>(options =>
 {
@@ -41,6 +41,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("LingolFrontend", policy =>
+        policy.WithOrigins(origensPermitidas)
+              .AllowAnyHeader()
+              .AllowAnyMethod());
+});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -77,13 +85,6 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-builder.Services.AddHttpClient<ICadastroClient, CadastroHttpClient>()
-    .ConfigureHttpClient(client =>
-    {
-        client.BaseAddress = new Uri(configuration["CadastroService:BaseUrl"] ?? "http://localhost:5000/");
-        client.Timeout = TimeSpan.FromSeconds(10);
-    });
-
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -95,6 +96,8 @@ if (app.Environment.IsDevelopment())
         c.RoutePrefix = "swagger";
     });
 }
+
+app.UseCors("LingolFrontend");
 
 app.UseAuthentication();
 app.UseAuthorization();
