@@ -18,9 +18,11 @@ var jwtAudience = configuration["Jwt:Audience"] ?? "Lingol.Client";
 var origensPermitidas = configuration.GetSection("Cors:Origins").Get<string[]>()
     ?? new[] { "http://localhost:4200" };
 
-builder.Services.AddDbContext<CadastroDbContext>(options =>
+builder.Services.AddDbContextPool<CadastroDbContext>(options =>
 {
-    options.UseSqlServer(cadastroConnectionString);
+    options.UseSqlServer(cadastroConnectionString, sql =>
+        // SQL Express local costuma demorar para aceitar conexoes sob carga.
+        sql.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorNumbersToAdd: null));
 });
 
 builder.Services.AddControllers();

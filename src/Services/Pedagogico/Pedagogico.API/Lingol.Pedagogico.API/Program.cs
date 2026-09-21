@@ -34,9 +34,11 @@ var origensPermitidas = configuration.GetSection("Cors:Origins").Get<string[]>()
 // 2. EF Core
 // ----------------------------------------------------------------------
 
-builder.Services.AddDbContext<PedagogicoDbContext>(options =>
+builder.Services.AddDbContextPool<PedagogicoDbContext>(options =>
 {
-    options.UseSqlServer(pedagogicoConnectionString);
+    options.UseSqlServer(pedagogicoConnectionString, sql =>
+        // SQL Express local costuma demorar para aceitar conexoes sob carga.
+        sql.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorNumbersToAdd: null));
 });
 
 builder.Services.AddScoped<IPedagogicoDbContext>(provider =>

@@ -53,8 +53,10 @@ namespace Lingol.Pedagogico.Infrastructure.Services
             sb.AppendLine("3. O campo gabarito contém SOMENTE a letra da alternativa correta (A, B, C ou D).");
             sb.AppendLine("4. A explicação descreve a regra gramatical envolvida em 1 a 2 frases, em tom");
             sb.AppendLine("   encorajador, porque ela é mostrada ao aluno quando ele erra.");
-            sb.AppendLine("5. O campo habilidade traz o conceito avaliado (ex.: \"substantivo próprio\",");
-            sb.AppendLine("   \"concordância verbal\", \"interpretação de texto\").");
+            sb.AppendLine("5. O campo habilidade traz o conceito avaliado por extenso, em no máximo 8");
+            sb.AppendLine("   palavras (ex.: \"substantivo próprio\", \"concordância verbal\",");
+            sb.AppendLine("   \"interpretação de texto\"). NUNCA use código da BNCC (ex.: EF06LP01)");
+            sb.AppendLine("   nem sigla: esse texto é exibido ao professor no mapa de lacunas.");
             sb.AppendLine("6. Escreva tudo em português do Brasil.");
 
             return sb.ToString();
