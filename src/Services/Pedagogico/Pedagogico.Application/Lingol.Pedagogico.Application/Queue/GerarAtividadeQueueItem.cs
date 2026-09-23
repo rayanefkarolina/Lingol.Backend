@@ -13,6 +13,7 @@ namespace Lingol.Pedagogico.Application.Queue
         public int Ano { get; set; } = 6;
         public int NumQuestoes { get; set; } = 10;
         public ModoGamificacao Modo { get; set; } = ModoGamificacao.Simples;
+        public string Tema { get; set; } = TemasAtividade.Fantasia;
         public string? PerfilAeeContexto { get; set; }
         public DateTime EnfileiradoEm { get; set; } = DateTime.UtcNow;
     }

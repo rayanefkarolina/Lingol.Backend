@@ -17,6 +17,21 @@ namespace Lingol.Pedagogico.Domain.Entities
         Erro = 3
     }
 
+    /// <summary>
+    /// Temas disponíveis para a atividade gamificada. Novos temas entram aqui e
+    /// no arquivo de configuração visual correspondente no frontend.
+    /// </summary>
+    public static class TemasAtividade
+    {
+        public const string Fantasia = "Fantasia";
+
+        public static readonly string[] Disponiveis = { Fantasia };
+
+        public static bool EhValido(string? tema) =>
+            !string.IsNullOrWhiteSpace(tema) &&
+            Disponiveis.Any(t => string.Equals(t, tema, StringComparison.OrdinalIgnoreCase));
+    }
+
     public class Atividade : EntityBase
     {
         private readonly List<Questao> _questoes = new();
@@ -33,6 +48,12 @@ namespace Lingol.Pedagogico.Domain.Entities
         /// <summary>Forma escolhida pelo professor: questionário simples ou atividade gamificada.</summary>
         public ModoGamificacao Modo { get; private set; } = ModoGamificacao.Simples;
 
+        /// <summary>
+        /// Tema visual/narrativo da atividade gamificada (ex.: "Fantasia" = Lingolgard).
+        /// Influencia o vocabulário das questões geradas pela IA e a arte do frontend.
+        /// </summary>
+        public string Tema { get; private set; } = TemasAtividade.Fantasia;
+
         public StatusAtividade Status { get; private set; } = StatusAtividade.Pendente;
         public DateTime DataCriacao { get; private set; } = DateTime.UtcNow;
         public string? MensagemErro { get; private set; }
@@ -47,7 +68,8 @@ namespace Lingol.Pedagogico.Domain.Entities
             string capituloOuAssunto,
             string materia = "Língua Portuguesa",
             int numQuestoes = 10,
-            ModoGamificacao modo = ModoGamificacao.Simples)
+            ModoGamificacao modo = ModoGamificacao.Simples,
+            string? tema = null)
         {
             TurmaId = turmaId;
             ProfessorId = professorId;
@@ -56,9 +78,13 @@ namespace Lingol.Pedagogico.Domain.Entities
             Materia = materia;
             NumQuestoes = numQuestoes <= 0 ? 10 : numQuestoes;
             Modo = modo;
+            Tema = string.IsNullOrWhiteSpace(tema) ? TemasAtividade.Fantasia : tema;
             Status = StatusAtividade.Pendente;
             DataCriacao = DateTime.UtcNow;
         }
+
+        /// <summary>O tabuleiro do modo gamificado tem 10 slots de itens.</summary>
+        public const int MaxQuestoesGamificada = 10;
 
         public void AdicionarQuestao(Questao questao)
         {

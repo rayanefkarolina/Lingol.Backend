@@ -55,6 +55,10 @@ namespace Lingol.Pedagogico.Infrastructure.Persistence
                     .HasMaxLength(20)
                     .IsRequired();
 
+                entity.Property(a => a.Tema)
+                    .HasMaxLength(50)
+                    .IsRequired();
+
                 entity.Property(a => a.Status)
                     .HasConversion<string>()
                     .HasMaxLength(50)

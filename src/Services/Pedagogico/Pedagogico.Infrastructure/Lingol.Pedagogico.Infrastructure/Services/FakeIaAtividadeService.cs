@@ -28,6 +28,8 @@ namespace Lingol.Pedagogico.Infrastructure.Services
             string materia,
             int ano,
             int numQuestoes,
+            ModoGamificacao modo,
+            string tema,
             string? perfilAeeContexto,
             CancellationToken cancellationToken)
         {
@@ -44,12 +46,17 @@ namespace Lingol.Pedagogico.Infrastructure.Services
             {
                 var correta = Letras[i % Letras.Length];
 
-                var alternativas = Letras
-                    .Select(l => $"{l}) Alternativa {l} da questão {i}")
-                    .ToList();
+                // O modo gamificado usa frase com lacuna e alternativas sem rótulo.
+                var alternativas = modo == ModoGamificacao.Rpg
+                    ? Letras.Select(l => $"palavra{l}").ToList()
+                    : Letras.Select(l => $"{l}) Alternativa {l} da questão {i}").ToList();
+
+                var enunciado = modo == ModoGamificacao.Rpg
+                    ? $"O guerreiro enfrentou o dragão ________ na fase {i}."
+                    : $"({materia} - {ano}º ano) Questão {i} sobre {capituloOuAssunto}, do livro \"{livro}\".";
 
                 questoes.Add(new QuestaoGeradaDto(
-                    Enunciado: $"({materia} - {ano}º ano) Questão {i} sobre {capituloOuAssunto}, do livro \"{livro}\".",
+                    Enunciado: enunciado,
                     Tipo: "MultiplaEscolha",
                     Alternativas: alternativas,
                     GabaritoOuCriterio: correta,

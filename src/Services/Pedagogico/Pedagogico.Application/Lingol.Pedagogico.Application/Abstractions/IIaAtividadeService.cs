@@ -11,6 +11,8 @@ namespace Lingol.Pedagogico.Application.Abstractions
             string materia,
             int ano,
             int numQuestoes,
+            ModoGamificacao modo,
+            string tema,
             string? perfilAeeContexto,
             CancellationToken cancellationToken);
 

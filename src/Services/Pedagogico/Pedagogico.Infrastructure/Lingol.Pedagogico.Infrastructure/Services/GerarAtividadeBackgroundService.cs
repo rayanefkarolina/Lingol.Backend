@@ -83,6 +83,8 @@ public class GerarAtividadeBackgroundService : BackgroundService
             item.Materia,
             item.Ano,
             item.NumQuestoes,
+            item.Modo,
+            item.Tema,
             item.PerfilAeeContexto,
             ct);
 

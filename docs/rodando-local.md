@@ -175,6 +175,22 @@ Ciclo completo medido após a troca:
 | Geração das questões | 27s (e falhas 503) | **7,8s** |
 | Diagnóstico da entrega | ~50s com retries | **3,3s** |
 
+### Formato das questões por modo
+
+O prompt muda conforme o formato escolhido pelo professor:
+
+| Modo | Enunciado | Alternativas |
+|---|---|---|
+| `Simples` | Pergunta autoexplicativa | Só o texto da opção |
+| `Rpg` | Frase curta com lacuna `________`, ambientada no tema | Só a palavra que preenche |
+
+Em ambos o gabarito é a **letra** (A–D) e a interface numera as opções sozinha.
+O `GET /questoes` nunca devolve gabarito nem explicação; eles só chegam ao aluno
+pelo `POST /respostas/questao`, depois que ele responde.
+
+O modo `Rpg` aceita no máximo **10 questões** (tamanho do tabuleiro), validado no
+`CriarAtividadeCommandHandler`. Temas disponíveis ficam em `TemasAtividade`.
+
 ### Duas filas em segundo plano
 
 | Fila | Disparada por | O que faz | Evento SignalR |
@@ -205,7 +221,9 @@ e alimenta o dashboard do professor.
 | GET | `/api/atividades/turmas/{turmaId}` | professor dono / aluno da turma |
 | GET | `/api/atividades/{id}` | professor dono / aluno da turma |
 | GET | `/api/atividades/{id}/questoes` (sem gabarito) | professor dono / aluno da turma |
-| POST | `/api/atividades/{id}/respostas` | aluno da turma |
+| POST | `/api/atividades/{id}/respostas` | aluno da turma (envio em lote) |
+| POST | `/api/atividades/{id}/respostas/questao` | aluno da turma (feedback imediato) |
+| POST | `/api/atividades/{id}/finalizar` | aluno da turma |
 | GET | `/api/relatorios/turmas/{turmaId}` | professor dono |
 | GET | `/api/relatorios/turmas/{turmaId}/alunos/{alunoId}` | professor dono / próprio aluno |
 | GET | `/api/relatorios/atividades/{atividadeId}` | professor dono |

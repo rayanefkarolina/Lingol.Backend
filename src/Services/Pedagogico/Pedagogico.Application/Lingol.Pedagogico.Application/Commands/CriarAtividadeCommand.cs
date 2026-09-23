@@ -11,6 +11,7 @@ namespace Lingol.Pedagogico.Application.Commands
         string Materia,
         int NumQuestoes = 10,
         ModoGamificacao Modo = ModoGamificacao.Simples,
+        string? Tema = null,
         string? PerfilAeeContexto = null
     ) : IRequest<CriarAtividadeResult>;
 

@@ -21,12 +21,23 @@ namespace Lingol.Pedagogico.Infrastructure.Services
             "Fundamental e classifica a dificuldade pedagógica por trás de cada erro. Seu tom com o " +
             "aluno é encorajador, nunca punitivo. Responda SEMPRE apenas com o JSON pedido.";
 
+        /// <summary>Ambientação narrativa de cada tema, injetada no prompt do modo gamificado.</summary>
+        private static string AmbientacaoDoTema(string tema) => tema switch
+        {
+            TemasAtividade.Fantasia =>
+                "reino medieval de fantasia (Lingolgard): cavaleiros, magos, guildas, espadas, " +
+                "escudos, poções, dragões, castelos e pergaminhos",
+            _ => "situações do cotidiano escolar"
+        };
+
         public static string MontarPromptGeracao(
             string livro,
             string capituloOuAssunto,
             string materia,
             int ano,
             int numQuestoes,
+            ModoGamificacao modo,
+            string tema,
             string? perfilAeeContexto)
         {
             var sb = new StringBuilder();
@@ -49,15 +60,40 @@ namespace Lingol.Pedagogico.Infrastructure.Services
             sb.AppendLine("Regras obrigatórias:");
             sb.AppendLine("1. Esta é a primeira atividade da turma, usada para DIAGNOSTICAR dificuldades.");
             sb.AppendLine("   Cubra habilidades variadas dentro do assunto, com dificuldade crescente.");
-            sb.AppendLine("2. Cada questão tem exatamente 4 alternativas, rotuladas \"A) \", \"B) \", \"C) \" e \"D) \".");
-            sb.AppendLine("3. O campo gabarito contém SOMENTE a letra da alternativa correta (A, B, C ou D).");
-            sb.AppendLine("4. A explicação descreve a regra gramatical envolvida em 1 a 2 frases, em tom");
+
+            if (modo == ModoGamificacao.Rpg)
+            {
+                // O tabuleiro do jogo exibe a frase em destaque e monta as letras sozinho,
+                // então o formato aqui é diferente do questionário tradicional.
+                sb.AppendLine($"2. As questões fazem parte de um jogo ambientado em {AmbientacaoDoTema(tema)}.");
+                sb.AppendLine("   Ambiente APENAS o vocabulário dos exemplos nesse universo; o conteúdo");
+                sb.AppendLine("   gramatical avaliado continua sendo exatamente o do assunto informado.");
+                sb.AppendLine("3. Cada enunciado é UMA FRASE CURTA com uma lacuna, marcada por exatamente");
+                sb.AppendLine("   oito sublinhados (________), no lugar da palavra que falta.");
+                sb.AppendLine("   Exemplo de formato: \"O bravo guerreiro e a maga ________.\"");
+                sb.AppendLine("   A frase tem no máximo 120 caracteres e nenhuma outra instrução.");
+                sb.AppendLine("4. Cada alternativa é SOMENTE a palavra ou expressão que preenche a lacuna,");
+                sb.AppendLine("   sem rótulo de letra, sem aspas e sem ponto final.");
+                sb.AppendLine("   Exemplo: [\"destemida\", \"destemidos\", \"destemidas\", \"destemido\"]");
+            }
+            else
+            {
+                sb.AppendLine("2. Cada questão tem exatamente 4 alternativas. Cada alternativa é SOMENTE");
+                sb.AppendLine("   o texto da opção, sem rótulo de letra: a interface numera A, B, C e D");
+                sb.AppendLine("   sozinha, e repetir a letra aqui duplica na tela do aluno.");
+                sb.AppendLine("3. O enunciado é autoexplicativo e não depende de imagem ou material externo.");
+                sb.AppendLine("4. As alternativas erradas são plausíveis, sem pegadinha de pontuação.");
+            }
+
+            sb.AppendLine("5. O campo gabarito contém SOMENTE a letra da alternativa correta (A, B, C ou D),");
+            sb.AppendLine("   seguindo a ordem em que as alternativas aparecem no array.");
+            sb.AppendLine("6. A explicação descreve a regra gramatical envolvida em 1 a 2 frases, em tom");
             sb.AppendLine("   encorajador, porque ela é mostrada ao aluno quando ele erra.");
-            sb.AppendLine("5. O campo habilidade traz o conceito avaliado por extenso, em no máximo 8");
+            sb.AppendLine("7. O campo habilidade traz o conceito avaliado por extenso, em no máximo 8");
             sb.AppendLine("   palavras (ex.: \"substantivo próprio\", \"concordância verbal\",");
             sb.AppendLine("   \"interpretação de texto\"). NUNCA use código da BNCC (ex.: EF06LP01)");
             sb.AppendLine("   nem sigla: esse texto é exibido ao professor no mapa de lacunas.");
-            sb.AppendLine("6. Escreva tudo em português do Brasil.");
+            sb.AppendLine("8. Escreva tudo em português do Brasil.");
 
             return sb.ToString();
         }

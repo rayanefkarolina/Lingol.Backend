@@ -37,6 +37,18 @@ public class CriarAtividadeCommandHandler
         // 2. Criar a Atividade em estado "Pendente".
         var numQuestoes = command.NumQuestoes <= 0 ? 10 : command.NumQuestoes;
 
+        // O tabuleiro gamificado tem 10 slots de itens, então esse é o teto do modo.
+        if (command.Modo == ModoGamificacao.Rpg && numQuestoes > Atividade.MaxQuestoesGamificada)
+        {
+            throw new InvalidOperationException(
+                $"A atividade gamificada aceita no máximo {Atividade.MaxQuestoesGamificada} questões.");
+        }
+
+        var tema = string.IsNullOrWhiteSpace(command.Tema) ? TemasAtividade.Fantasia : command.Tema;
+
+        if (!TemasAtividade.EhValido(tema))
+            throw new InvalidOperationException($"Tema '{tema}' não está disponível.");
+
         var atividade = new Atividade(
             command.TurmaId,
             command.ProfessorId,
@@ -44,7 +56,8 @@ public class CriarAtividadeCommandHandler
             command.CapituloOuAssunto,
             string.IsNullOrWhiteSpace(command.Materia) ? turma.Materia : command.Materia,
             numQuestoes,
-            command.Modo);
+            command.Modo,
+            tema);
 
         _db.Adicionar(atividade);
         await _db.SaveChangesAsync(cancellationToken);
@@ -60,6 +73,7 @@ public class CriarAtividadeCommandHandler
             Ano = turma.Ano,
             NumQuestoes = numQuestoes,
             Modo = command.Modo,
+            Tema = tema,
             PerfilAeeContexto = command.PerfilAeeContexto
         };
 

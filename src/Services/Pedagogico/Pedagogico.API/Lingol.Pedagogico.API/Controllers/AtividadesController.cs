@@ -59,6 +59,7 @@ public class AtividadesController : ControllerBase
             Materia: request.Materia ?? "Língua Portuguesa",
             NumQuestoes: request.NumQuestoes ?? 10,
             Modo: modo,
+            Tema: request.Tema,
             PerfilAeeContexto: request.PerfilAeeContexto);
 
         try
@@ -105,6 +106,7 @@ public class AtividadesController : ControllerBase
                 assunto = a.CapituloOuAssunto,
                 materia = a.Materia,
                 modo = a.Modo.ToString(),
+                tema = a.Tema,
                 status = a.Status.ToString(),
                 dataCriacao = a.DataCriacao,
                 numQuestoes = a.Questoes.Count
@@ -138,6 +140,7 @@ public class AtividadesController : ControllerBase
             assunto = atividade.CapituloOuAssunto,
             materia = atividade.Materia,
             modo = atividade.Modo.ToString(),
+            tema = atividade.Tema,
             status = atividade.Status.ToString(),
             dataCriacao = atividade.DataCriacao,
             mensagemErro = atividade.MensagemErro,
@@ -224,6 +227,74 @@ public class AtividadesController : ControllerBase
         }
     }
 
+    // ================================================================
+    // POST /api/atividades/{id}/respostas/questao
+    // Ciclo de feedback imediato: uma questão por vez.
+    // ================================================================
+    [HttpPost("{id:guid}/respostas/questao")]
+    [Authorize(Policy = "AlunoPolicy")]
+    public async Task<IActionResult> ResponderQuestao(
+        Guid id,
+        [FromBody] ResponderQuestaoRequest request,
+        CancellationToken cancellationToken)
+    {
+        var alunoId = ObterUsuarioId();
+        if (alunoId is null)
+            return Unauthorized();
+
+        try
+        {
+            var result = await _mediator.Send(
+                new ResponderQuestaoCommand(
+                    id, alunoId.Value, request.QuestaoId,
+                    request.RespostaEscolhida, request.TempoSegundos),
+                cancellationToken);
+
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { erro = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { erro = ex.Message });
+        }
+    }
+
+    // ================================================================
+    // POST /api/atividades/{id}/finalizar
+    // ================================================================
+    [HttpPost("{id:guid}/finalizar")]
+    [Authorize(Policy = "AlunoPolicy")]
+    public async Task<IActionResult> Finalizar(Guid id, CancellationToken cancellationToken)
+    {
+        var alunoId = ObterUsuarioId();
+        if (alunoId is null)
+            return Unauthorized();
+
+        try
+        {
+            var result = await _mediator.Send(
+                new FinalizarAtividadeCommand(id, alunoId.Value), cancellationToken);
+
+            return Ok(new
+            {
+                atividadeId = id,
+                respostaAlunoId = result.RespostaAlunoId,
+                acertos = result.Acertos,
+                erros = result.Erros,
+                totalQuestoes = result.TotalQuestoes,
+                nota = result.Nota,
+                mensagem = $"Você acertou {result.Acertos}/{result.TotalQuestoes} questões!"
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { erro = ex.Message });
+        }
+    }
+
     // ----------------------------------------------------------------
     // Helpers de claims
     // ----------------------------------------------------------------
@@ -250,10 +321,20 @@ public class GerarAtividadeRequest
     /// <summary>"Simples" (questionário) ou "Rpg" (atividade gamificada).</summary>
     public string? Modo { get; set; }
 
+    /// <summary>Tema da atividade gamificada. Hoje apenas "Fantasia" (Lingolgard).</summary>
+    public string? Tema { get; set; }
+
     public string? PerfilAeeContexto { get; set; }
 }
 
 public class EnviarRespostasRequest
 {
     public List<RespostaAlunoDto> Respostas { get; set; } = new();
+}
+
+public class ResponderQuestaoRequest
+{
+    public Guid QuestaoId { get; set; }
+    public string RespostaEscolhida { get; set; } = string.Empty;
+    public int TempoSegundos { get; set; }
 }
