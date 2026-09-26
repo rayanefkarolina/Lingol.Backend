@@ -86,9 +86,26 @@ public class GerarAtividadeBackgroundService : BackgroundService
             item.Modo,
             item.Tema,
             item.PerfilAeeContexto,
+            item.FocoRevisao,
             ct);
 
         _logger.LogInformation("IA retornou {NumQuestoes} questões", questoesGeradas.Count);
+
+        // Gerar de novo substitui o resultado anterior em vez de somar a ele.
+        // Sem isso, uma atividade reenfileirada pela varredura de recuperação
+        // sairia com o dobro de questões. A troca acontece no mesmo SaveChanges
+        // lá embaixo, então ou entra tudo, ou não entra nada.
+        var questoesAnteriores = await db.Questoes
+            .Where(q => q.AtividadeId == atividade.Id)
+            .ToListAsync(ct);
+
+        if (questoesAnteriores.Count > 0)
+        {
+            _logger.LogInformation(
+                "Descartando {Total} questão(ões) de uma geração anterior interrompida",
+                questoesAnteriores.Count);
+            db.Questoes.RemoveRange(questoesAnteriores);
+        }
 
         var ordem = 1;
         foreach (var q in questoesGeradas)

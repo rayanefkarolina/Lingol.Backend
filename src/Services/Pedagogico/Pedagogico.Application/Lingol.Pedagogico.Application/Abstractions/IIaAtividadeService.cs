@@ -14,6 +14,7 @@ namespace Lingol.Pedagogico.Application.Abstractions
             ModoGamificacao modo,
             string tema,
             string? perfilAeeContexto,
+            string? focoRevisao,
             CancellationToken cancellationToken);
 
         Task<CorrecaoResultado> CorrigirRespostaAsync(

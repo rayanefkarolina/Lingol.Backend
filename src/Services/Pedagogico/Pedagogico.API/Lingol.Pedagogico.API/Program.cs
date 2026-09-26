@@ -166,6 +166,11 @@ builder.Services.AddSingleton(correcaoChannel.Writer);
 builder.Services.AddHostedService<GerarAtividadeBackgroundService>();
 builder.Services.AddHostedService<CorrigirEntregaBackgroundService>();
 
+// Rede de segurança: as filas acima vivem na memória. Se o processo reiniciar
+// (hibernação da hospedagem, deploy, queda), esta varredura devolve à fila o que
+// ficou preso em "Processando" e as entregas sem diagnóstico.
+builder.Services.AddHostedService<RetomarProcessamentoService>();
+
 // ----------------------------------------------------------------------
 // 8. SignalR + notificador
 // ----------------------------------------------------------------------

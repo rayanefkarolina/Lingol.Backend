@@ -59,9 +59,6 @@ public class CriarAtividadeCommandHandler
             command.Modo,
             tema);
 
-        _db.Adicionar(atividade);
-        await _db.SaveChangesAsync(cancellationToken);
-
         // 3. Enfileirar para processamento em background (a tela do professor não trava).
         var queueItem = new GerarAtividadeQueueItem
         {
@@ -76,6 +73,13 @@ public class CriarAtividadeCommandHandler
             Tema = tema,
             PerfilAeeContexto = command.PerfilAeeContexto
         };
+
+        // A fila vive na memória: guardamos o pedido junto da atividade para que
+        // um reinício do servidor não perca a geração.
+        atividade.RegistrarPayloadGeracao(GerarAtividadeQueueItem.Serializar(queueItem));
+
+        _db.Adicionar(atividade);
+        await _db.SaveChangesAsync(cancellationToken);
 
         await _queueWriter.WriteAsync(queueItem, cancellationToken);
 

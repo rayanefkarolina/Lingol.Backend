@@ -96,8 +96,15 @@ public class AtividadesController : ControllerBase
         if (!await _acesso.PodeVerTurmaAsync(User, turmaId, cancellationToken))
             return StatusCode(StatusCodes.Status403Forbidden, new { erro = "Você não tem acesso a esta turma." });
 
-        var atividades = await _db.Atividades
-            .Where(a => a.TurmaId == turmaId)
+        var alunoId = User.IsInRole("Aluno") ? ObterUsuarioId() : null;
+
+        var consulta = _db.Atividades.Where(a => a.TurmaId == turmaId);
+
+        // Revisão é individual: o aluno vê as da turma mais as dele; o professor vê tudo.
+        if (alunoId is not null)
+            consulta = consulta.Where(a => a.AlunoId == null || a.AlunoId == alunoId);
+
+        var atividades = await consulta
             .OrderByDescending(a => a.DataCriacao)
             .Select(a => new
             {
@@ -109,11 +116,69 @@ public class AtividadesController : ControllerBase
                 tema = a.Tema,
                 status = a.Status.ToString(),
                 dataCriacao = a.DataCriacao,
-                numQuestoes = a.Questoes.Count
+                numQuestoes = a.Questoes.Count,
+                ehRevisao = a.AlunoId != null,
+                alunoId = a.AlunoId,
+
+                // Entrega já fechada: o app trava o card para não refazer por engano.
+                entrega = _db.RespostasAluno
+                    .Where(r => r.AtividadeId == a.Id
+                                && (alunoId == null || r.AlunoId == alunoId.Value)
+                                && r.TotalQuestoes > 0)
+                    .Select(r => new
+                    {
+                        concluida = true,
+                        acertos = r.Acertos,
+                        totalQuestoes = r.TotalQuestoes,
+                        nota = r.Nota,
+                        dataEnvio = r.DataEnvio
+                    })
+                    .FirstOrDefault()
             })
             .ToListAsync(cancellationToken);
 
         return Ok(atividades);
+    }
+
+    // ================================================================
+    // POST /api/atividades/{id}/revisao
+    // Gera uma atividade de reforço individual a partir do diagnóstico.
+    // ================================================================
+    [HttpPost("{id:guid}/revisao")]
+    [Authorize(Policy = "ProfessorPolicy")]
+    public async Task<IActionResult> GerarRevisao(
+        Guid id,
+        [FromBody] GerarRevisaoRequest request,
+        CancellationToken cancellationToken)
+    {
+        var professorId = ObterUsuarioId();
+        if (professorId is null)
+            return Unauthorized();
+
+        try
+        {
+            var result = await _mediator.Send(
+                new CriarAtividadeRevisaoCommand(id, request.AlunoId, professorId.Value, request.NumQuestoes),
+                cancellationToken);
+
+            return Accepted(
+                $"/api/atividades/{result.AtividadeId}",
+                new
+                {
+                    atividadeId = result.AtividadeId,
+                    status = result.Status,
+                    criadoEm = result.CriadoEm,
+                    mensagem = "Revisão enfileirada. Ela aparece só para este aluno quando ficar pronta."
+                });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { erro = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { erro = ex.Message });
+        }
     }
 
     // ================================================================
@@ -131,6 +196,10 @@ public class AtividadesController : ControllerBase
 
         if (!await _acesso.PodeVerTurmaAsync(User, atividade.TurmaId, cancellationToken))
             return StatusCode(StatusCodes.Status403Forbidden, new { erro = "Você não tem acesso a esta atividade." });
+
+        // Revisão é individual: nem outro aluno da turma pode abrir.
+        if (atividade.AlunoId is not null && User.IsInRole("Aluno") && ObterUsuarioId() != atividade.AlunoId)
+            return StatusCode(StatusCodes.Status403Forbidden, new { erro = "Esta revisão é de outro aluno." });
 
         return Ok(new
         {
@@ -162,6 +231,10 @@ public class AtividadesController : ControllerBase
 
         if (!await _acesso.PodeVerTurmaAsync(User, atividade.TurmaId, cancellationToken))
             return StatusCode(StatusCodes.Status403Forbidden, new { erro = "Você não tem acesso a esta atividade." });
+
+        // Revisão é individual: nem outro aluno da turma pode abrir.
+        if (atividade.AlunoId is not null && User.IsInRole("Aluno") && ObterUsuarioId() != atividade.AlunoId)
+            return StatusCode(StatusCodes.Status403Forbidden, new { erro = "Esta revisão é de outro aluno." });
 
         if (atividade.Status != StatusAtividade.Pronta)
             return Conflict(new { status = atividade.Status.ToString(), mensagem = "A atividade ainda não está pronta." });
@@ -330,6 +403,14 @@ public class GerarAtividadeRequest
 public class EnviarRespostasRequest
 {
     public List<RespostaAlunoDto> Respostas { get; set; } = new();
+}
+
+public class GerarRevisaoRequest
+{
+    public Guid AlunoId { get; set; }
+
+    /// <summary>Opcional: o padrão da revisão é 5 questões.</summary>
+    public int? NumQuestoes { get; set; }
 }
 
 public class ResponderQuestaoRequest

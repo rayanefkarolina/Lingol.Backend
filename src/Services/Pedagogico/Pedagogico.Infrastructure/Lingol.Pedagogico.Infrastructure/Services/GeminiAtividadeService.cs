@@ -43,10 +43,12 @@ namespace Lingol.Pedagogico.Infrastructure.Services
             ModoGamificacao modo,
             string tema,
             string? perfilAeeContexto,
+            string? focoRevisao,
             CancellationToken cancellationToken)
         {
             var prompt = GeminiPrompts.MontarPromptGeracao(
-                livro, capituloOuAssunto, materia, ano, numQuestoes, modo, tema, perfilAeeContexto);
+                livro, capituloOuAssunto, materia, ano, numQuestoes, modo, tema,
+                perfilAeeContexto, focoRevisao);
 
             using var json = await ChamarGeminiAsync(
                 prompt,

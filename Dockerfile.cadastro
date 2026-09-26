@@ -1,0 +1,33 @@
+# Imagem da API de Cadastro (professores, turmas, alunos, login).
+# O contexto do build é a RAIZ do repositório, porque o projeto referencia
+# outros projetos da solução (Contracts, Application, Infrastructure).
+#
+#   docker build -f Dockerfile.cadastro -t lingol-cadastro .
+
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+# Restaura primeiro só com os .csproj: assim o cache do Docker só é invalidado
+# quando uma dependência muda, e não a cada alteração de código.
+COPY ["Lingol.Backend.sln", "./"]
+COPY ["src/BuildingBlocks/Lingol.Contracts/Lingol.Contracts/Lingol.Contracts.csproj", "src/BuildingBlocks/Lingol.Contracts/Lingol.Contracts/"]
+COPY ["src/Services/Cadastro/Cadastro.Domain/Lingol.Cadastro.Domain/Lingol.Cadastro.Domain.csproj", "src/Services/Cadastro/Cadastro.Domain/Lingol.Cadastro.Domain/"]
+COPY ["src/Services/Cadastro/Cadastro.Application/Lingol.Cadastro.Application/Lingol.Cadastro.Application.csproj", "src/Services/Cadastro/Cadastro.Application/Lingol.Cadastro.Application/"]
+COPY ["src/Services/Cadastro/Cadastro.Infrastructure/Lingol.Cadastro.Infrastructure/Lingol.Cadastro.Infrastructure.csproj", "src/Services/Cadastro/Cadastro.Infrastructure/Lingol.Cadastro.Infrastructure/"]
+COPY ["src/Services/Cadastro/Cadastro.API/Lingol.Cadastro.API/Lingol.Cadastro.API.csproj", "src/Services/Cadastro/Cadastro.API/Lingol.Cadastro.API/"]
+RUN dotnet restore "src/Services/Cadastro/Cadastro.API/Lingol.Cadastro.API/Lingol.Cadastro.API.csproj"
+
+COPY . .
+RUN dotnet publish "src/Services/Cadastro/Cadastro.API/Lingol.Cadastro.API/Lingol.Cadastro.API.csproj" \
+    -c Release -o /app/publish /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+
+# A hospedagem informa a porta pela variável PORT (Render, Cloud Run, Railway...).
+# Sem ela, sobe na 8080.
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "Lingol.Cadastro.API.dll"]

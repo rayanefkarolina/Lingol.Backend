@@ -15,10 +15,12 @@ namespace Lingol.Cadastro.API.Controllers;
 public class TurmasController : ControllerBase
 {
     private readonly CadastroDbContext _db;
+    private readonly GeradorMatricula _geradorMatricula;
 
-    public TurmasController(CadastroDbContext db)
+    public TurmasController(CadastroDbContext db, GeradorMatricula geradorMatricula)
     {
         _db = db;
+        _geradorMatricula = geradorMatricula;
     }
 
     // 1) Criar turma (professor)
@@ -131,22 +133,32 @@ public class TurmasController : ControllerBase
         if (turma is null)
             return NotFound("Turma não encontrada ou não pertence ao professor atual.");
 
-        var matriculaNormalizada = request.Matricula.Trim();
+        // A matricula e gerada pelo backend; o professor nao digita mais esse numero.
+        // Em concorrencia duas requisicoes podem calcular o mesmo sequencial, entao
+        // o indice unico e a rede de seguranca e tentamos de novo.
+        Aluno? aluno = null;
 
-        var alunoExistente = await _db.Alunos
-            .AnyAsync(a => a.Matricula == matriculaNormalizada && a.TurmaId == turmaId, ct);
+        for (var tentativa = 1; tentativa <= 5; tentativa++)
+        {
+            var matricula = await _geradorMatricula.GerarAsync(ct);
+            aluno = new Aluno(request.Nome.Trim(), matricula, turmaId);
 
-        if (alunoExistente)
-            return BadRequest("Já existe aluno com essa matrícula na turma.");
+            _db.Alunos.Add(aluno);
 
-        // Use o construtor de Aluno
-        var aluno = new Aluno(
-            request.Nome.Trim(),
-            matriculaNormalizada,
-            turmaId);
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+                break;
+            }
+            catch (DbUpdateException) when (tentativa < 5)
+            {
+                _db.Entry(aluno).State = EntityState.Detached;
+                aluno = null;
+            }
+        }
 
-        _db.Alunos.Add(aluno);
-        await _db.SaveChangesAsync(ct);
+        if (aluno is null)
+            return Conflict(new { erro = "Nao foi possivel gerar a matricula. Tente novamente." });
 
         // Perfil de Atendimento Educacional Especializado (TDAH, TEA, ...), quando informado.
         if (!string.IsNullOrWhiteSpace(request.TipoNecessidadeAee))

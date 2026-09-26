@@ -105,7 +105,8 @@ namespace Lingol.Cadastro.Infrastructure.Persistence
                     .HasMaxLength(50)
                     .IsRequired();
 
-                entity.HasIndex(a => new { a.Matricula, a.TurmaId })
+                // Unica em toda a base: o aluno entra informando apenas a matricula.
+                entity.HasIndex(a => a.Matricula)
                     .IsUnique();
 
                 entity.Property(a => a.TurmaId)

@@ -38,7 +38,8 @@ namespace Lingol.Pedagogico.Infrastructure.Services
             int numQuestoes,
             ModoGamificacao modo,
             string tema,
-            string? perfilAeeContexto)
+            string? perfilAeeContexto,
+            string? focoRevisao = null)
         {
             var sb = new StringBuilder();
 
@@ -56,10 +57,30 @@ namespace Lingol.Pedagogico.Infrastructure.Services
                 sb.AppendLine("  vocabulário concreto e sem duplo sentido, evitando pegadinhas.");
             }
 
+            var ehRevisao = !string.IsNullOrWhiteSpace(focoRevisao);
+
+            if (ehRevisao)
+            {
+                sb.AppendLine();
+                sb.AppendLine("Esta é uma atividade de REVISÃO individual. O aluno já respondeu uma");
+                sb.AppendLine("atividade deste assunto e errou exatamente estes pontos:");
+                sb.AppendLine(focoRevisao);
+            }
+
             sb.AppendLine();
             sb.AppendLine("Regras obrigatórias:");
-            sb.AppendLine("1. Esta é a primeira atividade da turma, usada para DIAGNOSTICAR dificuldades.");
-            sb.AppendLine("   Cubra habilidades variadas dentro do assunto, com dificuldade crescente.");
+
+            if (ehRevisao)
+            {
+                sb.AppendLine("1. Toda questão deve treinar UM dos pontos listados acima, sem introduzir");
+                sb.AppendLine("   conteúdo novo. Comece pelo caso mais simples e suba a dificuldade aos poucos,");
+                sb.AppendLine("   para o aluno recuperar a confiança antes de enfrentar o caso que errou.");
+            }
+            else
+            {
+                sb.AppendLine("1. Esta é a primeira atividade da turma, usada para DIAGNOSTICAR dificuldades.");
+                sb.AppendLine("   Cubra habilidades variadas dentro do assunto, com dificuldade crescente.");
+            }
 
             if (modo == ModoGamificacao.Rpg)
             {

@@ -31,6 +31,7 @@ namespace Lingol.Pedagogico.Infrastructure.Services
             ModoGamificacao modo,
             string tema,
             string? perfilAeeContexto,
+            string? focoRevisao,
             CancellationToken cancellationToken)
         {
             _logger.LogWarning(

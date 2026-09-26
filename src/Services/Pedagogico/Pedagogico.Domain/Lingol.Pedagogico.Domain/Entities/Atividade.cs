@@ -54,9 +54,28 @@ namespace Lingol.Pedagogico.Domain.Entities
         /// </summary>
         public string Tema { get; private set; } = TemasAtividade.Fantasia;
 
+        /// <summary>
+        /// Quando preenchido, a atividade e individual (revisao gerada para um
+        /// aluno especifico). Nulo significa que vale para a turma inteira.
+        /// </summary>
+        public Guid? AlunoId { get; private set; }
+
+        /// <summary>Atividade que originou esta revisao, quando houver.</summary>
+        public Guid? AtividadeOrigemId { get; private set; }
+
+        public bool EhRevisao => AlunoId.HasValue;
+
         public StatusAtividade Status { get; private set; } = StatusAtividade.Pendente;
         public DateTime DataCriacao { get; private set; } = DateTime.UtcNow;
         public string? MensagemErro { get; private set; }
+
+        /// <summary>
+        /// Cópia do item que foi para a fila de geração, em JSON. A fila vive na
+        /// memória do processo: se o servidor reinicia no meio da geração, é por
+        /// aqui que a varredura de recuperação sabe exatamente o que reenfileirar
+        /// (inclusive o foco da revisão e o contexto AEE, que não ficam em colunas).
+        /// </summary>
+        public string? PayloadGeracaoJson { get; private set; }
         public IReadOnlyCollection<Questao> Questoes => _questoes;
 
         private Atividade() { }
@@ -69,7 +88,9 @@ namespace Lingol.Pedagogico.Domain.Entities
             string materia = "Língua Portuguesa",
             int numQuestoes = 10,
             ModoGamificacao modo = ModoGamificacao.Simples,
-            string? tema = null)
+            string? tema = null,
+            Guid? alunoId = null,
+            Guid? atividadeOrigemId = null)
         {
             TurmaId = turmaId;
             ProfessorId = professorId;
@@ -79,6 +100,8 @@ namespace Lingol.Pedagogico.Domain.Entities
             NumQuestoes = numQuestoes <= 0 ? 10 : numQuestoes;
             Modo = modo;
             Tema = string.IsNullOrWhiteSpace(tema) ? TemasAtividade.Fantasia : tema;
+            AlunoId = alunoId;
+            AtividadeOrigemId = atividadeOrigemId;
             Status = StatusAtividade.Pendente;
             DataCriacao = DateTime.UtcNow;
         }
@@ -89,6 +112,21 @@ namespace Lingol.Pedagogico.Domain.Entities
         public void AdicionarQuestao(Questao questao)
         {
             _questoes.Add(questao);
+        }
+
+        public void RegistrarPayloadGeracao(string json)
+        {
+            PayloadGeracaoJson = json;
+        }
+
+        /// <summary>
+        /// Devolve a atividade para a fila depois de uma interrupção (reinício do
+        /// servidor, por exemplo). Só faz sentido enquanto ela não ficou pronta.
+        /// </summary>
+        public void MudarStatusParaPendente()
+        {
+            Status = StatusAtividade.Pendente;
+            MensagemErro = null;
         }
 
         public void MudarStatusParaProcessando()

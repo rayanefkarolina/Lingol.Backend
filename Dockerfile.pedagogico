@@ -1,0 +1,29 @@
+# Imagem da API Pedagógica (atividades, IA, correção, relatórios, SignalR).
+# O contexto do build é a RAIZ do repositório, porque o projeto referencia
+# outros projetos da solução.
+#
+#   docker build -f Dockerfile.pedagogico -t lingol-pedagogico .
+
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+COPY ["Lingol.Backend.sln", "./"]
+COPY ["src/BuildingBlocks/Lingol.Contracts/Lingol.Contracts/Lingol.Contracts.csproj", "src/BuildingBlocks/Lingol.Contracts/Lingol.Contracts/"]
+COPY ["src/Services/Pedagogico/Pedagogico.Domain/Lingol.Pedagogico.Domain/Lingol.Pedagogico.Domain.csproj", "src/Services/Pedagogico/Pedagogico.Domain/Lingol.Pedagogico.Domain/"]
+COPY ["src/Services/Pedagogico/Pedagogico.Application/Lingol.Pedagogico.Application/Lingol.Pedagogico.Application.csproj", "src/Services/Pedagogico/Pedagogico.Application/Lingol.Pedagogico.Application/"]
+COPY ["src/Services/Pedagogico/Pedagogico.Infrastructure/Lingol.Pedagogico.Infrastructure/Lingol.Pedagogico.Infrastructure.csproj", "src/Services/Pedagogico/Pedagogico.Infrastructure/Lingol.Pedagogico.Infrastructure/"]
+COPY ["src/Services/Pedagogico/Pedagogico.API/Lingol.Pedagogico.API/Lingol.Pedagogico.API.csproj", "src/Services/Pedagogico/Pedagogico.API/Lingol.Pedagogico.API/"]
+RUN dotnet restore "src/Services/Pedagogico/Pedagogico.API/Lingol.Pedagogico.API/Lingol.Pedagogico.API.csproj"
+
+COPY . .
+RUN dotnet publish "src/Services/Pedagogico/Pedagogico.API/Lingol.Pedagogico.API/Lingol.Pedagogico.API.csproj" \
+    -c Release -o /app/publish /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "Lingol.Pedagogico.API.dll"]

@@ -70,7 +70,20 @@ namespace Lingol.Pedagogico.Infrastructure.Persistence
                 entity.Property(a => a.MensagemErro)
                     .HasMaxLength(1000);
 
+                // O foco da revisão pode ser longo, então fica sem limite de tamanho.
+                entity.Property(a => a.PayloadGeracaoJson);
+
+                entity.Property(a => a.AlunoId);
+                entity.Property(a => a.AtividadeOrigemId);
+
+                // A varredura de recuperação filtra por status; o índice evita
+                // varrer a tabela inteira a cada reinício.
+                entity.HasIndex(a => a.Status);
+
+                entity.Ignore(a => a.EhRevisao);
+
                 entity.HasIndex(a => a.TurmaId);
+                entity.HasIndex(a => a.AlunoId);
 
                 entity.HasMany(a => a.Questoes)
                     .WithOne()

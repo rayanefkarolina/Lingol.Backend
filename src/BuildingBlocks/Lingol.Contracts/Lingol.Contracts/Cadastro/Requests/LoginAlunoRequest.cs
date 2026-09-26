@@ -1,11 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.ComponentModel.DataAnnotations;
 
 namespace Lingol.Contracts.Cadastro.Requests
 {
-    public record LoginAlunoRequest(string Nome, string Matricula);
-
+    /// <summary>
+    /// Acesso sem friccao: o aluno informa apenas o numero de matricula,
+    /// que e unico em toda a base.
+    /// </summary>
+    public record LoginAlunoRequest(
+        [Required(ErrorMessage = "Informe o numero de matricula.")]
+        string Matricula);
 }

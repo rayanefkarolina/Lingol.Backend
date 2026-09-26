@@ -26,6 +26,7 @@ builder.Services.AddDbContextPool<CadastroDbContext>(options =>
 });
 
 builder.Services.AddControllers();
+builder.Services.AddScoped<GeradorMatricula>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -103,6 +104,10 @@ app.UseCors("LingolFrontend");
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Usado pelo health check da hospedagem e pelo ping que impede a hibernacao.
+app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "Lingol.Cadastro.API" }))
+   .AllowAnonymous();
 
 app.MapControllers();
 

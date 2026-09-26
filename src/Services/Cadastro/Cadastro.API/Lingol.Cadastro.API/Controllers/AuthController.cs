@@ -91,13 +91,11 @@ public class AuthController : ControllerBase
         [FromBody] LoginAlunoRequest request,
         CancellationToken ct)
     {
-        var nomeNormalizado = request.Nome.Trim().ToLowerInvariant();
+        var matricula = request.Matricula.Trim();
 
         var aluno = await _db.Alunos
             .Include(a => a.PerfilAee)
-            .FirstOrDefaultAsync(a =>
-                a.Nome.ToLower() == nomeNormalizado &&
-                a.Matricula == request.Matricula, ct);
+            .FirstOrDefaultAsync(a => a.Matricula == matricula, ct);
 
         if (aluno is null)
             return Unauthorized();

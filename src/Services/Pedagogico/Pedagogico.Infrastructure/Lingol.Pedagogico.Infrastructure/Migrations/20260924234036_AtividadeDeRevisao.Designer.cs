@@ -4,6 +4,7 @@ using Lingol.Pedagogico.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Lingol.Pedagogico.Infrastructure.Migrations
 {
     [DbContext(typeof(PedagogicoDbContext))]
-    partial class PedagogicoDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260924234036_AtividadeDeRevisao")]
+    partial class AtividadeDeRevisao
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -70,9 +73,6 @@ namespace Lingol.Pedagogico.Infrastructure.Migrations
                         .HasColumnType("int")
                         .HasDefaultValue(10);
 
-                    b.Property<string>("PayloadGeracaoJson")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<Guid>("ProfessorId")
                         .HasColumnType("uniqueidentifier");
 
@@ -92,8 +92,6 @@ namespace Lingol.Pedagogico.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AlunoId");
-
-                    b.HasIndex("Status");
 
                     b.HasIndex("TurmaId");
 
