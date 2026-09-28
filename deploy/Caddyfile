@@ -1,0 +1,37 @@
+# Porta de entrada do Lingol.
+#
+# O Caddy pede e renova o certificado sozinho no Let's Encrypt — por isso o
+# endereço precisa ser um nome de domínio de verdade (o DuckDNS serve), nunca
+# um IP puro.
+#
+# As duas APIs vivem sob o mesmo endereço, separadas por prefixo:
+#   https://SEU-DOMINIO/cadastro/api/...     -> API de Cadastro
+#   https://SEU-DOMINIO/pedagogico/api/...   -> API Pedagógica
+#   https://SEU-DOMINIO/pedagogico/hubs/...  -> SignalR (WebSocket)
+#
+# "handle_path" remove o prefixo antes de repassar, então as APIs continuam
+# recebendo /api/... como recebem na sua máquina.
+
+{$DOMINIO} {
+	encode zstd gzip
+
+	handle_path /cadastro/* {
+		reverse_proxy cadastro:8080
+	}
+
+	handle_path /pedagogico/* {
+		reverse_proxy pedagogico:8080
+	}
+
+	# Qualquer outro caminho: resposta curta, só para o endereço não ficar mudo.
+	handle {
+		respond "Lingol API" 200
+	}
+
+	log {
+		output file /data/acesso.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}

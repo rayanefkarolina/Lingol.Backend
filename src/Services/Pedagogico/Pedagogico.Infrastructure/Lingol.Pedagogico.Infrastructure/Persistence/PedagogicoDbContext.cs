@@ -1,4 +1,4 @@
-using Lingol.Pedagogico.Application.Abstractions;
+﻿using Lingol.Pedagogico.Application.Abstractions;
 using Lingol.Pedagogico.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -65,7 +65,7 @@ namespace Lingol.Pedagogico.Infrastructure.Persistence
                     .IsRequired();
 
                 entity.Property(a => a.DataCriacao)
-                    .HasDefaultValueSql("GETUTCDATE()");
+                    .HasDefaultValueSql("timezone('utc', now())");
 
                 entity.Property(a => a.MensagemErro)
                     .HasMaxLength(1000);
@@ -141,7 +141,7 @@ namespace Lingol.Pedagogico.Infrastructure.Persistence
                 entity.Property(r => r.AlunoId).IsRequired();
 
                 entity.Property(r => r.DataEnvio)
-                    .HasDefaultValueSql("GETUTCDATE()");
+                    .HasDefaultValueSql("timezone('utc', now())");
 
                 entity.Property(r => r.Acertos).IsRequired();
                 entity.Property(r => r.Erros).IsRequired();

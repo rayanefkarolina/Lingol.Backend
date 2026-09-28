@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Threading.Channels;
 using Lingol.Pedagogico.API.Http;
 using Lingol.Pedagogico.API.Hubs;
@@ -36,9 +36,9 @@ var origensPermitidas = configuration.GetSection("Cors:Origins").Get<string[]>()
 
 builder.Services.AddDbContextPool<PedagogicoDbContext>(options =>
 {
-    options.UseSqlServer(pedagogicoConnectionString, sql =>
-        // SQL Express local costuma demorar para aceitar conexoes sob carga.
-        sql.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorNumbersToAdd: null));
+    options.UseNpgsql(pedagogicoConnectionString, pg =>
+        // Banco gerenciado pode derrubar conexao ociosa; o retry cobre isso.
+        pg.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null));
 });
 
 builder.Services.AddScoped<IPedagogicoDbContext>(provider =>

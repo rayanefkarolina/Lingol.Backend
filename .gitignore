@@ -364,3 +364,7 @@ FodyWeavers.xsd
 # Arquivo temporario que o "dotnet ef" deixa para tras quando o caminho passado
 # em --project nao existe. Ele cria a pasta, escreve isto e nao limpa depois.
 *.EntityFrameworkCore.targets
+
+# Segredos da implantacao (senha do banco, chave JWT, chave do Gemini).
+# O .env.exemplo e versionado; o .env, nunca.
+deploy/.env

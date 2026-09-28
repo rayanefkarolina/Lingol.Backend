@@ -1,0 +1,87 @@
+# Pilha completa do Lingol numa única VM (Oracle Cloud Always Free).
+#
+#   docker compose up -d --build
+#
+# Sobe quatro contêineres:
+#   postgres    banco de dados, com os dois esquemas
+#   cadastro    API de professores, turmas e alunos
+#   pedagogico  API de atividades, IA, correção e SignalR
+#   caddy       porta de entrada: HTTPS automático e roteamento por caminho
+#
+# Só o Caddy fica exposto à internet. As APIs e o banco conversam pela rede
+# interna do Docker e não têm porta publicada.
+
+name: lingol
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: lingol_cadastro
+    volumes:
+      - dados-postgres:/var/lib/postgresql/data
+      # Cria o segundo banco na primeira subida. Roda uma vez só.
+      - ./init-bancos.sh:/docker-entrypoint-initdb.d/init-bancos.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d lingol_cadastro"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  cadastro:
+    build:
+      context: ..
+      dockerfile: Dockerfile.cadastro
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Cadastro: "Host=postgres;Database=lingol_cadastro;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+      Jwt__Key: ${JWT_KEY}
+      Cors__Origins__0: ${FRONTEND_URL}
+
+  pedagogico:
+    build:
+      context: ..
+      dockerfile: Dockerfile.pedagogico
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Pedagogico: "Host=postgres;Database=lingol_pedagogico;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+      Jwt__Key: ${JWT_KEY}
+      Cors__Origins__0: ${FRONTEND_URL}
+      Gemini__ApiKey: ${GEMINI_API_KEY}
+      IaProvider__UseFake: "false"
+      # Chamada interna, sem passar pela internet nem pelo Caddy.
+      CadastroService__BaseUrl: "http://cadastro:8080/"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - cadastro
+      - pedagogico
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMINIO: ${DOMINIO}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - dados-caddy:/data
+      - config-caddy:/config
+
+volumes:
+  dados-postgres:
+  dados-caddy:
+  config-caddy:

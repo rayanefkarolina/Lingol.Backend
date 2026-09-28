@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Lingol.Cadastro.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -20,9 +20,9 @@ var origensPermitidas = configuration.GetSection("Cors:Origins").Get<string[]>()
 
 builder.Services.AddDbContextPool<CadastroDbContext>(options =>
 {
-    options.UseSqlServer(cadastroConnectionString, sql =>
-        // SQL Express local costuma demorar para aceitar conexoes sob carga.
-        sql.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorNumbersToAdd: null));
+    options.UseNpgsql(cadastroConnectionString, pg =>
+        // Banco gerenciado pode derrubar conexao ociosa; o retry cobre isso.
+        pg.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null));
 });
 
 builder.Services.AddControllers();
@@ -105,10 +105,9 @@ app.UseCors("LingolFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Usado pelo health check da hospedagem e pelo ping que impede a hibernacao.
-app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "Lingol.Cadastro.API" }))
-   .AllowAnonymous();
-
+// O health check usado pela hospedagem fica em Controllers/HealthController.cs,
+// na rota GET /health. Nao registre outro aqui: duas rotas iguais derrubam o
+// endpoint com AmbiguousMatchException.
 app.MapControllers();
 
 app.Run();

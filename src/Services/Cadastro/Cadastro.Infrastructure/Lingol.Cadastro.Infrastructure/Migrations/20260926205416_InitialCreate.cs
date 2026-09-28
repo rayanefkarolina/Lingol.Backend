@@ -15,11 +15,11 @@ namespace Lingol.Cadastro.Infrastructure.Migrations
                 name: "Professores",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SenhaHash = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    Nome = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    Email = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    SenhaHash = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    Nome = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    Email = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -30,12 +30,12 @@ namespace Lingol.Cadastro.Infrastructure.Migrations
                 name: "Turmas",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Nome = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    Materia = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    ProfessorId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ProfessorId1 = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Nome = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    Materia = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    Ano = table.Column<int>(type: "integer", nullable: false, defaultValue: 6),
+                    ProfessorId = table.Column<Guid>(type: "uuid", nullable: false),
+                    CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -46,22 +46,17 @@ namespace Lingol.Cadastro.Infrastructure.Migrations
                         principalTable: "Professores",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Turmas_Professores_ProfessorId1",
-                        column: x => x.ProfessorId1,
-                        principalTable: "Professores",
-                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateTable(
                 name: "Alunos",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Nome = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    Matricula = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    TurmaId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Nome = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    Matricula = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    TurmaId = table.Column<Guid>(type: "uuid", nullable: false),
+                    CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -78,11 +73,11 @@ namespace Lingol.Cadastro.Infrastructure.Migrations
                 name: "PerfisAee",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    AlunoId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TipoNecessidade = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    Observacoes = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: false),
-                    CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    AlunoId = table.Column<Guid>(type: "uuid", nullable: false),
+                    TipoNecessidade = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    Observacoes = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
+                    CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -96,9 +91,9 @@ namespace Lingol.Cadastro.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_Alunos_Matricula_TurmaId",
+                name: "IX_Alunos_Matricula",
                 table: "Alunos",
-                columns: new[] { "Matricula", "TurmaId" },
+                column: "Matricula",
                 unique: true);
 
             migrationBuilder.CreateIndex(
@@ -122,11 +117,6 @@ namespace Lingol.Cadastro.Infrastructure.Migrations
                 name: "IX_Turmas_ProfessorId",
                 table: "Turmas",
                 column: "ProfessorId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Turmas_ProfessorId1",
-                table: "Turmas",
-                column: "ProfessorId1");
         }
 
         /// <inheritdoc />
