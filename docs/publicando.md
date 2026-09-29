@@ -231,10 +231,20 @@ security list* → **Add Ingress Rules**, e crie duas:
 bloqueando tudo. Conecte por SSH e rode:
 
 ```bash
-sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
-sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+LINHA=$(sudo iptables -L INPUT -n --line-numbers | awk '/REJECT/ {print $1; exit}')
+sudo iptables -I INPUT "$LINHA" -m state --state NEW -p tcp --dport 80 -j ACCEPT
+sudo iptables -I INPUT "$((LINHA+1))" -m state --state NEW -p tcp --dport 443 -j ACCEPT
 sudo netfilter-persistent save
 ```
+
+> A primeira linha existe por um motivo. As regras da imagem Ubuntu da Oracle
+> terminam num `REJECT` que derruba todo o resto, e uma regra inserida **depois**
+> dele nunca é alcançada. Muitos tutoriais mandam usar a posição 6 fixa; nesta
+> imagem o `REJECT` está na 5, e o comando fixo colocaria as suas regras no lugar
+> errado. O `awk` descobre a posição em vez de chutar.
+
+Confira com `sudo iptables -L INPUT -n --line-numbers`: as linhas das portas 80
+e 443 têm de aparecer **acima** da linha do `REJECT`.
 
 Sem esse segundo passo o site simplesmente não responde, e o sintoma é mudo:
 nenhuma mensagem de erro, só uma conexão que nunca completa.
