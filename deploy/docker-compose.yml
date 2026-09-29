@@ -10,6 +10,10 @@
 #
 # Só o Caddy fica exposto à internet. As APIs e o banco conversam pela rede
 # interna do Docker e não têm porta publicada.
+#
+# Os limites de memória e o ajuste do Postgres abaixo foram calculados para
+# caber numa VM.Standard.E2.1.Micro (1 OCPU, 1 GB) com 2 GB de swap. Numa ARM
+# A1.Flex de 6 GB eles sobram, e não atrapalham.
 
 name: lingol
 
@@ -17,6 +21,16 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    mem_limit: 200m
+    # Padrões do Postgres assumem um servidor grande. Para 21 usuários, estes
+    # valores bastam e devolvem uns 100 MB à máquina.
+    command: >
+      postgres
+      -c shared_buffers=48MB
+      -c effective_cache_size=192MB
+      -c maintenance_work_mem=32MB
+      -c work_mem=2MB
+      -c max_connections=40
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -36,6 +50,7 @@ services:
       context: ..
       dockerfile: Dockerfile.cadastro
     restart: unless-stopped
+    mem_limit: 220m
     depends_on:
       postgres:
         condition: service_healthy
@@ -45,12 +60,16 @@ services:
       ConnectionStrings__Cadastro: "Host=postgres;Database=lingol_cadastro;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
       Jwt__Key: ${JWT_KEY}
       Cors__Origins__0: ${FRONTEND_URL}
+      # GC de estação de trabalho. O padrão em contêiner é o GC de servidor, que
+      # reserva um heap por núcleo e infla o consumo sem ganho nenhum aqui.
+      DOTNET_gcServer: "0"
 
   pedagogico:
     build:
       context: ..
       dockerfile: Dockerfile.pedagogico
     restart: unless-stopped
+    mem_limit: 260m
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,10 +83,12 @@ services:
       IaProvider__UseFake: "false"
       # Chamada interna, sem passar pela internet nem pelo Caddy.
       CadastroService__BaseUrl: "http://cadastro:8080/"
+      DOTNET_gcServer: "0"
 
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    mem_limit: 64m
     depends_on:
       - cadastro
       - pedagogico

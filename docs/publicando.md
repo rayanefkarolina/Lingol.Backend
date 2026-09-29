@@ -141,25 +141,79 @@ O cadastro é o passo mais chato de todo o guia — reserve meia hora.
 3. **Image and shape → Edit**:
    - **Image:** Canonical Ubuntu 24.04
    - **Shape → Ampere → VM.Standard.A1.Flex**
-   - **OCPUs:** 2 · **Memory:** 12 GB
+   - **OCPUs:** 1 · **Memory:** 6 GB
 
-   > Sobra bastante para o Lingol, e deixa metade da cota gratuita livre para
-   > outra máquina no futuro.
+   > Peça pequeno. A Oracle aloca por bloco livre, e um pedido de 1/6 entra onde
+   > 2/12 é recusado por falta de capacidade — que é o erro mais comum aqui.
+   > 6 GB é folga enorme para o Lingol: as duas APIs juntas não passam de
+   > 500 MB. A cota gratuita é de 4 OCPUs e 24 GB, então ainda sobra para uma
+   > segunda máquina depois.
 
-4. **Add SSH keys → Generate a key pair for me** e **baixe a chave privada**.
+4. **Networking** — não passe batido, é aqui que quase todo mundo se perde:
+   - **Subnet:** tem de ser uma **pública**. A tela mostra *Public subnet* ou
+     *Private subnet* ao lado do nome. Numa privada a máquina nunca terá
+     endereço na internet, e não dá para trocar depois.
+   - **Assign a public IPv4 address:** marque **Yes**. Em algumas versões do
+     painel ela vem desmarcada.
+5. **Add SSH keys → Generate a key pair for me** e **baixe a chave privada**.
    Sem ela você não entra na máquina, e não dá para baixar depois.
-5. **Create**.
+6. **Create**.
+
+### Se a instância nasceu sem IP público
+
+Acontece quando o passo 4 passou batido. O sintoma é a página da instância
+mostrar **Public IPv4 address: —** em *Primary VNIC*.
+
+Primeiro descubra em que tipo de sub-rede ela caiu: na página da instância,
+aba **Networking**, clique no nome da **Subnet**. No topo da página da sub-rede
+aparece **Subnet Access: Public Subnet** ou **Private Subnet**.
+
+**Se for pública**, dá para resolver sem recriar nada:
+
+1. Na página da instância, **Networking → Primary VNIC**, clique no nome da VNIC.
+2. Na página da VNIC, **Resources → IPv4 Addresses**.
+3. Na linha do IP privado, clique nos três pontinhos → **Edit**.
+4. Em **Public IP Type**, troque *No public IP* por **Ephemeral public IP**.
+5. **Update**. O endereço aparece em segundos.
+
+> *Ephemeral* sobrevive a reinício e é suficiente aqui. Se quiser um que nunca
+> mude nem se você recriar a máquina, escolha *Reserved* — o Always Free inclui
+> dois endereços públicos.
+
+**Se for privada**, não há conserto: sub-rede privada não aceita IP público, e a
+VNIC não pode mudar de sub-rede. Como a máquina ainda está vazia, o caminho
+barato é **Terminate** e criar de novo, agora com atenção ao passo 4. Só
+confirme antes que a sua VCN tem um **Internet Gateway** e que a tabela de
+rotas da sub-rede pública tem a regra `0.0.0.0/0` apontando para ele — se você
+usou a opção *Create new virtual cloud network*, a Oracle já criou os dois.
 
 ### Se aparecer "Out of capacity"
 
 É o erro mais comum da Oracle: as máquinas ARM gratuitas vivem esgotadas nas
 regiões concorridas. Opções:
 
-- Tentar de novo em horários diferentes (madrugada costuma funcionar)
-- Reduzir para 1 OCPU e 6 GB
-- Tentar o outro *availability domain*, se a sua região tiver mais de um
+- Tentar de novo em horários diferentes (madrugada e fim de semana costumam abrir)
+- Reduzir o pedido: 1 OCPU e 6 GB entra onde 2 e 12 não entram
+- Tentar o outro *availability domain*, se a sua região tiver mais de um —
+  São Paulo tem só um, então aqui essa saída não existe
+
+Trocar de região não resolve: recursos Always Free só rodam na região de origem
+da conta, e ela não muda depois do cadastro.
 
 Não adianta insistir de minuto em minuto. Tente algumas vezes por dia.
+
+**Enquanto o ARM não vem, crie uma `VM.Standard.E2.1.Micro`** (AMD, 1 OCPU,
+1 GB). As cotas são separadas — você tem direito a duas micro *e* às 4 OCPUs
+ARM ao mesmo tempo —, então ela não atrapalha em nada e serve de plano B.
+
+O Lingol roda nela, apertado mas de pé: o `docker-compose.yml` já traz os
+limites de memória e o Postgres ajustado para caber, e a seção 6 explica o
+swap, que nessa máquina é obrigatório. A soma dos tetos dá 744 MB, e o uso real
+fica em torno de 500 MB.
+
+Se o ARM aparecer depois, a migração é o mesmo `git clone` e o mesmo
+`docker compose up` na máquina nova — mais restaurar o backup do banco. Nada
+muda no projeto.
 
 ### Liberando as portas — a armadilha da Oracle
 
@@ -223,6 +277,25 @@ sudo usermod -aG docker $USER
 ```
 
 Saia (`exit`) e conecte de novo — é o que faz valer a permissão do Docker.
+
+### Swap — obrigatório na micro de 1 GB
+
+A imagem Ubuntu da Oracle vem **sem swap**. Numa VM de 1 GB isso significa que
+qualquer pico de memória mata um contêiner em vez de desacelerar. Crie 2 GB:
+
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+A última linha é o que faz o swap voltar sozinho depois de um reboot. Confira
+com `free -h`: a linha `Swap` deve mostrar 2,0Gi.
+
+> Numa ARM de 6 GB o swap não é necessário, mas também não atrapalha — e é
+> barato deixar configurado para o caso de a máquina crescer de uso.
 
 Baixe o projeto:
 
