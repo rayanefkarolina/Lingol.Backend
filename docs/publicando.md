@@ -355,21 +355,34 @@ Quando o Caddy disser `certificate obtained successfully`, o HTTPS está de pé.
 
 ### Criando as tabelas em produção
 
-As migrations não rodam sozinhas. Da **sua máquina**, apontando para o banco da
-VM — que não está exposto na internet, então o caminho é um túnel SSH:
+As migrations não rodam sozinhas, e a VM não tem o SDK do .NET. O banco também
+não publica porta nenhuma — é assim de propósito, para ele não ficar alcançável
+de fora. Então o caminho é gerar o SQL aqui e aplicá-lo lá dentro.
+
+Na **sua máquina**, gere os dois scripts:
 
 ```powershell
-ssh -i C:\caminho\para\chave.key -L 5433:localhost:5432 ubuntu@SEU-IP
+dotnet ef migrations script --idempotent --project src\Services\Cadastro\Cadastro.Infrastructure\Lingol.Cadastro.Infrastructure --startup-project src\Services\Cadastro\Cadastro.API\Lingol.Cadastro.API -o cadastro.sql
+
+dotnet ef migrations script --idempotent --project src\Services\Pedagogico\Pedagogico.Infrastructure\Lingol.Pedagogico.Infrastructure --startup-project src\Services\Pedagogico\Pedagogico.API\Lingol.Pedagogico.API -o pedagogico.sql
 ```
 
-Deixe essa janela aberta e, em **outra**:
+O `--idempotent` é o que torna isso seguro de repetir: cada bloco só roda se
+ainda não tiver rodado, então aplicar duas vezes não quebra nada.
+
+Mande para a VM:
 
 ```powershell
-$env:ConnectionStrings__Cadastro = "Host=localhost;Port=5433;Database=lingol_cadastro;Username=lingol;Password=<a senha do .env>"
-dotnet ef database update --project src\Services\Cadastro\Cadastro.Infrastructure\Lingol.Cadastro.Infrastructure --startup-project src\Services\Cadastro\Cadastro.API\Lingol.Cadastro.API
+scp -i C:\caminho\para\chave.key cadastro.sql pedagogico.sql ubuntu@SEU-IP:~/
+```
 
-$env:ConnectionStrings__Pedagogico = "Host=localhost;Port=5433;Database=lingol_pedagogico;Username=lingol;Password=<a senha do .env>"
-dotnet ef database update --project src\Services\Pedagogico\Pedagogico.Infrastructure\Lingol.Pedagogico.Infrastructure --startup-project src\Services\Pedagogico\Pedagogico.API\Lingol.Pedagogico.API
+E aplique lá, por dentro do contêiner:
+
+```bash
+cd ~/Lingol.Backend/deploy
+docker compose exec -T postgres psql -U lingol -d lingol_cadastro   < ~/cadastro.sql
+docker compose exec -T postgres psql -U lingol -d lingol_pedagogico < ~/pedagogico.sql
+rm ~/cadastro.sql ~/pedagogico.sql
 ```
 
 Reinicie as APIs para pegarem o banco pronto:
